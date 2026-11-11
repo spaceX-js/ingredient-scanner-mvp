@@ -5,13 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "deploy": "wrangler deploy"
   },
   "devDependencies": {
-    "@cloudflare/vitest-plugin": "^0.12.14",
-    "vitest": "^4.1.0",
-    "wrangler": "^4.47.0"
+    "wrangler": "^4.0.0"
   }
 }
