@@ -1,149 +1,81 @@
 const ROSSMANN_BASE = "https://www.rossmann.de";
 
 function slugify(value = "") {
-  return value
-    .toLowerCase()
-    .normalize("NFD")
+  return String(value).toLowerCase().normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/&/g, " und ")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+    .replace(/ß/g, "ss").replace(/&/g, " und ")
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
-function stripHtml(value = "") {
-  return value
-    .replace(/<br\s*\/?>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/\s+/g, " ")
-    .trim();
+function decodeHtml(value = "") {
+  return String(value)
+    .replace(/\\u003c/gi, "<").replace(/\\u003e/gi, ">")
+    .replace(/\\u0026/gi, "&").replace(/\\"/g, '"')
+    .replace(/&quot;/gi, '"').replace(/&amp;/gi, "&")
+    .replace(/&nbsp;/gi, " ").replace(/&#39;|&#x27;/gi, "'")
+    .replace(/&auml;/gi, "ä").replace(/&ouml;/gi, "ö").replace(/&uuml;/gi, "ü")
+    .replace(/&Auml;/g, "Ä").replace(/&Ouml;/g, "Ö").replace(/&Uuml;/g, "Ü").replace(/&szlig;/gi, "ß");
 }
 
-function decodeEscapedHtml(value = "") {
-  return value
-    .replace(/\\u003c/gi, "<")
-    .replace(/\\u003e/gi, ">")
-    .replace(/\\"/g, '"')
-    .replace(/\\n/g, " ")
-    .replace(/\\r/g, " ");
+function cleanText(value = "") {
+  return decodeHtml(value).replace(/<br\s*\/?>/gi, " ").replace(/<[^>]+>/g, " ")
+    .replace(/\\n|\\r/g, " ").replace(/\s+/g, " ").trim();
 }
 
-function buildCandidates(product, ean) {
-  const brand = slugify(product?.brands || "");
-  const name = slugify(product?.product_name || "");
-
-  const candidates = new Set();
-
-  if (brand && name) {
-    candidates.add(
-      `${ROSSMANN_BASE}/de/lebensmittel-${brand}-${name}/p/${ean}`
-    );
-  }
-
-  if (name) {
-    candidates.add(
-      `${ROSSMANN_BASE}/de/lebensmittel-${name}/p/${ean}`
-    );
-  }
-
-  return [...candidates];
-}
-
-function extractIngredients(html) {
-  const decoded = decodeEscapedHtml(html);
-
+export function extractRossmannIngredients(html = "") {
+  const decoded = decodeHtml(html);
   const patterns = [
-    /(?:Zutaten|ZUTATEN)[^:]{0,100}:?\s*<\/?[^>]*>?\s*([^]{20,2500}?)(?=(?:Nährwert|Naehrwert|Allergen|Aufbewahrung|Verwendung|<\/section>|<\/div>))/i,
-
-    /"(?:ingredients|ingredientText|ingredientsText)"\s*:\s*"([^"]{10,2500})"/i,
-
-    /(?:Zutaten|ZUTATEN)[\s\S]{0,300}?((?:\d+\s*%\s*)?[A-Za-zÄÖÜäöüß][\s\S]{20,1800}?)(?=Nährwert|Naehrwert|Allergen)/i
+    /"(?:ingredients|ingredientText|ingredientsText)"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/i,
+    /(?:Zutaten|Inhaltsstoffe)[\s\S]{0,500}?((?:\d+(?:[.,]\d+)?\s*%\s*)?[A-Za-zÄÖÜäöüß][\s\S]{20,2500}?)(?=(?:Nährwert|Naehrwert|Allergen|Aufbewahrung|Verwendung|Hinweis|<\/section>|<\/article>))/i
   ];
-
-  for (const pattern of patterns) {
-    const match = decoded.match(pattern);
-
-    if (match?.[1]) {
-      const cleaned = stripHtml(match[1]);
-
-      if (cleaned.length >= 10) {
-        return cleaned;
-      }
-    }
+  for (const re of patterns) {
+    const match = decoded.match(re);
+    if (!match?.[1]) continue;
+    const text = cleanText(match[1]);
+    if (text.length >= 10) return text;
   }
-
   return null;
 }
 
-async function fetchRossmannPage(url) {
+function buildCandidates(ean, product = {}) {
+  const brand = slugify(product.brand || product.brands || "");
+  const name = slugify(product.name || product.product_name || "");
+  const urls = new Set();
+  if (brand && name) urls.add(`${ROSSMANN_BASE}/de/lebensmittel-${brand}-${name}/p/${ean}`);
+  if (name) urls.add(`${ROSSMANN_BASE}/de/lebensmittel-${name}/p/${ean}`);
+  return [...urls];
+}
+
+async function fetchPage(url) {
   const response = await fetch(url, {
-    method: "GET",
     headers: {
-      Accept: "text/html,application/xhtml+xml",
+      "Accept": "text/html,application/xhtml+xml",
       "Accept-Language": "de-DE,de;q=0.9",
-      "User-Agent":
-        "Mozilla/5.0 (compatible; IngredientScannerMVP/0.1)"
+      "User-Agent": "Mozilla/5.0 (compatible; KlarZutaten/0.2; +https://workers.dev)"
     },
     redirect: "follow"
   });
-
-  if (!response.ok) {
-    return null;
-  }
-
-  const html = await response.text();
-
-  return {
-    html,
-    finalUrl: response.url
-  };
+  if (!response.ok) return null;
+  return { html: await response.text(), finalUrl: response.url, status: response.status };
 }
 
 export async function getRossmannByProduct(ean, product = {}) {
-  const candidates = buildCandidates(product, ean);
-
+  const candidates = buildCandidates(ean, product);
+  if (!candidates.length) return { found: false, source: "Rossmann HTML", reason: "insufficient_product_metadata" };
   for (const url of candidates) {
     try {
-      const page = await fetchRossmannPage(url);
-
-      if (!page?.html) {
-        continue;
-      }
-
-      // Schutz gegen Redirects auf Kategorie-, Such- oder Fehlerseiten.
-      if (!page.html.includes(String(ean))) {
-        continue;
-      }
-
-      const ingredients = extractIngredients(page.html);
-
-      if (!ingredients) {
-        continue;
-      }
-
+      const page = await fetchPage(url);
+      if (!page?.html || !page.html.includes(String(ean))) continue;
+      const ingredients = extractRossmannIngredients(page.html);
+      if (!ingredients) continue;
       return {
         found: true,
         source: "Rossmann HTML",
+        source_url: page.finalUrl,
         confidence: "high",
-        url: page.finalUrl,
-        ingredients_text: ingredients
+        product: { ean, ingredients }
       };
-    } catch (error) {
-      console.error("Rossmann adapter error", {
-        ean,
-        url,
-        message: error?.message
-      });
-    }
+    } catch (_) {}
   }
-
-  return {
-    found: false,
-    source: "Rossmann HTML",
-    confidence: "none",
-    ingredients_text: null
-  };
+  return { found: false, source: "Rossmann HTML", reason: "no_verified_product_page_with_ingredients" };
 }

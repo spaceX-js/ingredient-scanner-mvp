@@ -1,7 +1,14 @@
-import { describe, expect, it } from "vitest";
+import test from "node:test";
+import assert from "node:assert/strict";
 import { analyseIngredients } from "../src/engine/ingredient-engine.js";
-describe("ingredient engine",()=>{
-  it("detects added sugar",()=>expect(analyseIngredients("Hafer, Zucker, Glukosesirup").added_sugar).toBe(true));
-  it("separates sweeteners",()=>expect(analyseIngredients("Milch, Sucralose").sweeteners_present).toBe(true));
-  it("detects sweetening ingredients",()=>expect(analyseIngredients("Tomaten, Apfelsaftkonzentrat, Salz").sweetening_ingredients_present).toBe(true));
+
+test("recognises added sugar and sweetener", () => {
+  const r = analyseIngredients("Milch, Zucker, Acesulfam K");
+  assert.equal(r.added_sugar, true);
+  assert.equal(r.sweeteners_present, true);
+});
+
+test("recognises apple juice concentrate as sweetening ingredient", () => {
+  const r = analyseIngredients("Tomatenmark, Apfelsaftkonzentrat, Sonnenblumenöl");
+  assert.equal(r.sweetening_ingredients_present, true);
 });
