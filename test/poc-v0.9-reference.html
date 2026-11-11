@@ -1,0 +1,408 @@
+<!doctype html><html lang='de'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>KlarZutaten PoC</title><style>
+:root{font-family:Inter,system-ui,sans-serif;color:#17211b;background:#f6f8f6}body{margin:0}.wrap{max-width:920px;margin:auto;padding:32px 20px}h1{font-size:38px;margin:0 0 8px}.sub{color:#657168;margin-bottom:26px}.card{background:#fff;border:1px solid #e1e7e2;border-radius:18px;padding:22px;margin:16px 0;box-shadow:0 8px 30px #18351f0d}.search{display:flex;gap:10px}input{flex:1;padding:14px 16px;border:1px solid #cdd7cf;border-radius:12px;font-size:17px}button{border:0;background:#183d2b;color:white;padding:14px 18px;border-radius:12px;font-weight:700;cursor:pointer}.muted{color:#718078}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.result{border-radius:14px;padding:16px;border:1px solid #e2e7e3}.green{background:#f0f8f2}.yellow{background:#fff9e8}.red{background:#fff0ee}.tag{font-size:12px;text-transform:uppercase;font-weight:800;letter-spacing:.06em}.ingredients{line-height:1.6}.pill{display:inline-block;padding:5px 9px;background:#eef2ef;border-radius:999px;margin:3px;font-size:13px}.error{color:#a22}.small{font-size:13px}th,td{padding:8px 10px;border-bottom:1px solid #edf0ed;text-align:center}th:first-child,td:first-child{text-align:left}@media(max-width:650px){.grid{grid-template-columns:1fr}.search{flex-direction:column}h1{font-size:30px}}</style></head><body><div class='wrap'>
+<h1>KlarZutaten <span style='font-size:16px'>PoC v0.8</span></h1><div class='sub'>Barcode eingeben → Zutaten verständlich machen. Noch keine Gesundheitsbewertung.</div>
+<div class='card'><div class='search'><input id='ean' inputmode='numeric' placeholder='EAN / GTIN, z. B. 4061458193931'><button onclick='lookup()'>Produkt prüfen</button></div><div class='small muted' style='margin-top:10px'>Datenquellen: verifizierte Händlerdaten + Open Food Facts. Quellen werden feldweise zusammengeführt. EAN-8 und EAN-13 werden akzeptiert.</div></div>
+<div id='status'></div><div id='out'></div>
+<div class='card' id='benchmark-card'>
+  <h2 style='margin-top:0'>Produkt-Benchmark</h2>
+  <div class='small muted' style='margin-bottom:14px'>200-Produkte-Benchmark – Rossmann-Adapter v0.9: exakt 25 reale EANs je Händler. Misst Product-, Ingredient- und Nutrition-Coverage sowie die Abdeckung nach Produktkategorie.</div>
+  <div style='display:flex;gap:10px;flex-wrap:wrap'>
+    <button id='benchmark-start' onclick='runBenchmark()'>Benchmark starten</button>
+    <button id='benchmark-export' onclick='exportCSV()' style='background:#e8eee9;color:#183d2b'>CSV exportieren</button>
+  </div>
+  <div id='bench' style='margin-top:16px'><span class='muted'>Testset bereit: 200 eindeutige EANs · 8 Händler · 25 Produkte je Händler. Laufzeit wegen gedrosselter Requests ca. mehrere Minuten.</span></div>
+</div>
+<div class='card'><b>Test-EANs</b><div class='small muted'>Zum schnellen Prüfen der Engine.</div><div id='tests'></div></div>
+</div><script>
+const RULES={
+ added:[['glukose-fruktose-sirup','Glukose-Fruktose-Sirup'],['fruktose-glukose-sirup','Fruktose-Glukose-Sirup'],['invertzuckersirup','Invertzuckersirup'],['glukosesirup','Glukosesirup'],['fruktosesirup','Fruktosesirup'],['dextrose','Dextrose'],['saccharose','Saccharose'],['rohrzucker','Rohrzucker'],['rübenzucker','Rübenzucker'],['zucker','Zucker']],
+ sweetener:[['acesulfam k','Acesulfam K (E950)'],['acesulfam-k','Acesulfam K (E950)'],['sucralose','Sucralose (E955)'],['aspartam','Aspartam (E951)'],['saccharin','Saccharin (E954)'],['steviolglycosid','Steviolglycoside (E960)'],['erythrit','Erythrit (E968)'],['xylit','Xylit (E967)'],['sorbit','Sorbit (E420)']],
+ sweetening:[['apfeldicksaft','Apfeldicksaft'],['agavendicksaft','Agavendicksaft'],['ahornsirup','Ahornsirup'],['dattelsirup','Dattelsirup'],['dattelpaste','Dattelpaste'],['honig','Honig'],['apfelsaftkonzentrat','Apfelsaftkonzentrat'],['ananas-saftkonzentrat','Ananassaftkonzentrat'],['ananassaftkonzentrat','Ananassaftkonzentrat']],
+ additives:[['carrageen','Carrageen (E407)'],['natrium-carboxymethylcellulose','Natrium-Carboxymethylcellulose (E466)'],['mono- und diglyceride','Mono- und Diglyceride von Speisefettsäuren (E471)'],['citronensäure','Citronensäure (E330)'],['pektin','Pektin (E440)'],['guarkernmehl','Guarkernmehl (E412)'],['johannisbrotkernmehl','Johannisbrotkernmehl (E410)'],['kaliumsorbat','Kaliumsorbat (E202)']]
+};
+const VERIFIED={
+'4031244004895':{
+ product:{value:'Alete Kinderteller Spaghetti Bolognese ab 1 Jahr',source:'dm.de',url:'https://www.dm.de/p/d/3118830/alete-kinderteller-spaghetti-bolognese-ab-1-jahr',updated:'2026-11-10',confidence:100},
+ brand:{value:'Alete',source:'dm.de',updated:'2026-11-10',confidence:100},
+ ingredients:{value:'Wasser, Karotten 19%, SPAGHETTI gekocht (Wasser, DINKELWEIZENMEHL) 15%, Tomaten 10%, Rindfleisch 8%, Zwiebeln, Tomatenmark 5%, Pastinaken 4%, Kartoffelstärke, Knoblauch, Rapsöl, Thymian, Oregano, Petersilie, schwarzer Pfeffer.',source:'dm.de',url:'https://www.dm.de/p/d/3118830/alete-kinderteller-spaghetti-bolognese-ab-1-jahr',updated:'2026-11-10',confidence:100},
+ sugar:{value:2.9,source:'dm.de',url:'https://www.dm.de/p/d/3118830/alete-kinderteller-spaghetti-bolognese-ab-1-jahr',updated:'2026-11-10',confidence:100},
+ noAddedSugar:{value:true,source:'dm.de',updated:'2026-11-10',confidence:100}
+},
+'4311501040959':{
+ product:{value:'GUT&GÜNSTIG Tortillachips Salz',source:'EDEKA Foodservice',url:'https://edeka-foodservice.de/eigenmarken/produkte/5957916008/gut-guenstig-tortillachips-salz-300g',updated:'2026-03-19',confidence:100},
+ brand:{value:'GUT&GÜNSTIG',source:'EDEKA Foodservice',updated:'2026-03-19',confidence:100},
+ ingredients:{value:'78% Mais, 19% Sonnenblumenöl, 0,8% Speisesalz.',source:'EDEKA Foodservice',url:'https://edeka-foodservice.de/eigenmarken/produkte/5957916008/gut-guenstig-tortillachips-salz-300g',updated:'2026-03-19',confidence:100},
+ sugar:{value:1,source:'EDEKA Foodservice',updated:'2026-03-19',confidence:100}
+}
+};
+function offDate(ts){if(!ts)return null;try{return new Date(ts*1000).toISOString().slice(0,10)}catch{return null}}
+function candidate(value,source,updated,confidence,url){return value==null||value===''?null:{value,source,updated:updated||null,confidence,url:url||null}}
+function choose(primary,fallback){return primary||fallback||null}
+function mergeProduct(off,v){
+ const offUpdated=offDate(off.last_modified_t);
+ const f={};
+ f.product=choose(v?.product,candidate(off.product_name,'Open Food Facts',offUpdated,75));
+ f.brand=choose(v?.brand,candidate(off.brands,'Open Food Facts',offUpdated,75));
+ f.ingredients=choose(v?.ingredients,candidate(off.ingredients_text_de||off.ingredients_text,'Open Food Facts',offUpdated,70));
+ f.sugar=choose(v?.sugar,candidate(off.nutriments?.sugars_100g,'Open Food Facts',offUpdated,70));
+ f.image=candidate(off.image_front_small_url,'Open Food Facts',offUpdated,70);
+ f.noAddedSugar=v?.noAddedSugar||null;
+ return f;
+}
+function sourceBadge(field){if(!field)return '<span class="pill">Quelle fehlt</span>';const date=field.updated?` · ${field.updated}`:'';return `<span class="pill">${field.source}${date} · ${field.confidence}%</span>`}
+function overallConfidence(fields){let xs=Object.values(fields).filter(x=>x&&typeof x.confidence==='number');return xs.length?Math.round(xs.reduce((a,b)=>a+b.confidence,0)/xs.length):0}
+
+const BENCHMARK=[
+ ['Aldi','Aldi Bio','4061458061872','Milch/Joghurt',0],
+ ['Aldi','Aldi Bio','4061458061858','Milch/Joghurt',0],
+ ['Aldi','Aldi Bio','4061458193931','Milch/Joghurt',1],
+ ['Aldi','Aldi Bio','4061458215855','Milch/Joghurt',0],
+ ['Aldi','Aldi Bio','4061459719628','Milch/Joghurt',1],
+ ['Aldi','Aldi','4061458025874','Milch/Joghurt',0],
+ ['Aldi','Aldi','4061458047050','Milch/Joghurt',0],
+ ['Aldi','Aldi','29065561','Milch/Joghurt',0],
+ ['Aldi','Aldi','4047247221993','Snacks/Suesses',0],
+ ['Aldi','Aldi','29050581','Getraenke',0],
+ ['Aldi','Aldi','4061458025607','Milch/Joghurt',0],
+ ['Aldi','Aldi','4061458025652','Milch/Joghurt',0],
+ ['Aldi','Aldi','4061458022347','Milch/Joghurt',0],
+ ['Aldi','Aldi','4061458022330','Milch/Joghurt',0],
+ ['Aldi','Aldi','4061458022323','Milch/Joghurt',0],
+ ['Aldi','Aldi','4061458022354','Milch/Joghurt',0],
+ ['Aldi','Aldi','4061458022293','Milch/Joghurt',0],
+ ['Aldi','Aldi Bio','4061458020701','Fertiggerichte',0],
+ ['Aldi','Aldi Bio','4061458173667','Herzhaft',0],
+ ['Aldi','Aldi Bio','4061458220644','Herzhaft',0],
+ ['Aldi','Aldi Bio','4061461618650','Milch/Joghurt',0],
+ ['Aldi','Aldi Bio','4061463671011','Milch/Joghurt',0],
+ ['Aldi','Aldi','4061458020107','Herzhaft',0],
+ ['Aldi','Gut Bio','4061458021210','Milch/Joghurt',0],
+ ['Aldi','Aldi Bio','4061458061926','Milch/Joghurt',0],
+ ['Lidl','Milbona','4056489939412','Milch/Joghurt',0],
+ ['Lidl','Milbona','4056489136118','Milch/Joghurt',0],
+ ['Lidl','Milbona','4335619077317','Milch/Joghurt',0],
+ ['Lidl','Milbona','4335619258556','Milch/Joghurt',0],
+ ['Lidl','Lidl Bio','4056489379850','Milch/Joghurt',0],
+ ['Lidl','Milbona','4056489014096','Milch/Joghurt',0],
+ ['Lidl','Milbona','20723583','Milch/Joghurt',0],
+ ['Lidl','Milbona','4056489018407','Milch/Joghurt',0],
+ ['Lidl','Milbona','20094614','Milch/Joghurt',0],
+ ['Lidl','Milbona','20861087','Milch/Joghurt',0],
+ ['Lidl','Milbona','20418403','Snacks/Suesses',0],
+ ['Lidl','Milbona','20573126','Getraenke',0],
+ ['Lidl','Milbona','20625818','Herzhaft',0],
+ ['Lidl','Milbona','20847876','Herzhaft',0],
+ ['Lidl','Milbona','20851255','Milch/Joghurt',0],
+ ['Lidl','Lidl','4056489182863','Herzhaft',0],
+ ['Lidl','Lidl','4056489578994','Herzhaft',0],
+ ['Lidl','Lidl','4056489141686','Herzhaft',0],
+ ['Lidl','Lidl','4056489443346','Fertiggerichte',0],
+ ['Lidl','Lidl','4056489305811','Herzhaft',0],
+ ['Lidl','Lidl','4056489117056','Herzhaft',0],
+ ['Lidl','Lidl','20525255','Herzhaft',0],
+ ['Lidl','Lidl','20297367','Fertiggerichte',0],
+ ['Lidl','Lidl','4056489115878','Fertiggerichte',0],
+ ['Lidl','Lidl','4056489573487','Herzhaft',0],
+ ['REWE','Beste Wahl','4337256368087','Milch/Joghurt',1],
+ ['REWE','Beste Wahl','4337256382564','Snacks/Suesses',1],
+ ['REWE','Beste Wahl','4337256653725','Snacks/Suesses',1],
+ ['REWE','Beste Wahl','4337256145329','Milch/Joghurt',0],
+ ['REWE','Beste Wahl','4337256252171','Fertiggerichte',0],
+ ['REWE','Beste Wahl','4388860684322','Snacks/Suesses',0],
+ ['REWE','Beste Wahl','4388860684414','Snacks/Suesses',0],
+ ['REWE','Beste Wahl','4337256555777','Snacks/Suesses',0],
+ ['REWE','Beste Wahl','4388860120974','Snacks/Suesses',0],
+ ['REWE','Beste Wahl','4388860636369','Milch/Joghurt',0],
+ ['REWE','Beste Wahl','4337256365802','Milch/Joghurt',0],
+ ['REWE','Beste Wahl','4337256368810','Milch/Joghurt',0],
+ ['REWE','Beste Wahl','4337256651684','Milch/Joghurt',0],
+ ['REWE','Beste Wahl','4337256154178','Milch/Joghurt',0],
+ ['REWE','Beste Wahl','4337256175753','Snacks/Suesses',0],
+ ['REWE','Beste Wahl','4337256645829','Snacks/Suesses',0],
+ ['REWE','Beste Wahl','4337256470940','Kochen/Backen',0],
+ ['REWE','Beste Wahl','4337256191234','Fertiggerichte',0],
+ ['REWE','Beste Wahl','21270017','Fertiggerichte',0],
+ ['REWE','Beste Wahl','4337256200868','Herzhaft',0],
+ ['REWE','Beste Wahl','4388844203372','Milch/Joghurt',0],
+ ['REWE','Beste Wahl','4337256304450','Milch/Joghurt',0],
+ ['REWE','Beste Wahl','4337256541046','Milch/Joghurt',0],
+ ['REWE','Beste Wahl','4337256672887','Fertiggerichte',0],
+ ['REWE','Beste Wahl','4337256640190','Fertiggerichte',0],
+ ['EDEKA','GUT&GÜNSTIG','4311501040959','Snacks/Suesses',1],
+ ['EDEKA','GUT&GÜNSTIG','4311501112168','Fertiggerichte',1],
+ ['EDEKA','GUT&GÜNSTIG','4311501744437','Snacks/Suesses',1],
+ ['EDEKA','GUT&GÜNSTIG','4311501082393','Milch/Joghurt',0],
+ ['EDEKA','GUT&GÜNSTIG','4311501701607','Milch/Joghurt',0],
+ ['EDEKA','GUT&GÜNSTIG','4311501038925','Milch/Joghurt',0],
+ ['EDEKA','GUT&GÜNSTIG','4311501674000','Milch/Joghurt',0],
+ ['EDEKA','GUT&GÜNSTIG','4311596069200','Herzhaft',0],
+ ['EDEKA','GUT&GÜNSTIG','4311501496046','Herzhaft',0],
+ ['EDEKA','GUT&GÜNSTIG','4311501632123','Milch/Joghurt',0],
+ ['EDEKA','GUT&GÜNSTIG','4311501632666','Milch/Joghurt',0],
+ ['EDEKA','GUT&GÜNSTIG','4311501007921','Milch/Joghurt',0],
+ ['EDEKA','GUT&GÜNSTIG','4311501047378','Milch/Joghurt',0],
+ ['EDEKA','GUT&GÜNSTIG','4311501072349','Kochen/Backen',0],
+ ['EDEKA','GUT&GÜNSTIG','4311501384145','Milch/Joghurt',0],
+ ['EDEKA','GUT&GÜNSTIG','4311501441664','Herzhaft',0],
+ ['EDEKA','GUT&GÜNSTIG','4311501670996','Fertiggerichte',0],
+ ['EDEKA','GUT&GÜNSTIG','4311501672341','Fertiggerichte',0],
+ ['EDEKA','GUT&GÜNSTIG','4311501675328','Fertiggerichte',0],
+ ['EDEKA','GUT&GÜNSTIG','4311501687550','Fertiggerichte',0],
+ ['EDEKA','GUT&GÜNSTIG','4311501722282','Milch/Joghurt',0],
+ ['EDEKA','GUT&GÜNSTIG','4311501734162','Milch/Joghurt',0],
+ ['EDEKA','GUT&GÜNSTIG','4311501771181','Milch/Joghurt',0],
+ ['EDEKA','GUT&GÜNSTIG','4311501454008','Milch/Joghurt',0],
+ ['EDEKA','GUT&GÜNSTIG','4311596468690','Snacks/Suesses',0],
+ ['Penny','Penny','24244664','Milch/Joghurt',0],
+ ['Penny','Penny','21737848','Milch/Joghurt',0],
+ ['Penny','Penny','21429255','Milch/Joghurt',0],
+ ['Penny','Penny','21430923','Milch/Joghurt',0],
+ ['Penny','Penny','21547089','Getraenke',0],
+ ['Penny','Penny','20389406','Milch/Joghurt',0],
+ ['Penny','Penny','21418730','Milch/Joghurt',0],
+ ['Penny','Penny','20291532','Milch/Joghurt',0],
+ ['Penny','Penny','20820695','Milch/Joghurt',0],
+ ['Penny','Penny','21285219','Milch/Joghurt',0],
+ ['Penny','Penny','20069933','Milch/Joghurt',0],
+ ['Penny','Penny','23127104','Milch/Joghurt',0],
+ ['Penny','Penny Ready','20705817','Getraenke',0],
+ ['Penny','Penny Ready','20986858','Getraenke',0],
+ ['Penny','Penny Ready','20986360','Getraenke',0],
+ ['Penny','Penny Ready','22116055','Getraenke',0],
+ ['Penny','Penny Ready','20958756','Fertiggerichte',0],
+ ['Penny','Penny Ready','20953195','Fertiggerichte',0],
+ ['Penny','Penny Ready','20707569','Getraenke',0],
+ ['Penny','Penny Ready','20955953','Fertiggerichte',0],
+ ['Penny','Penny Ready','20955298','Fertiggerichte',0],
+ ['Penny','Penny Ready','21818882','Fertiggerichte',0],
+ ['Penny','Penny Ready','22076175','Fertiggerichte',0],
+ ['Penny','Penny Ready','20118099','Fertiggerichte',0],
+ ['Penny','Penny Ready','21710476','Fertiggerichte',0],
+ ['Kaufland','K-Classic','4063367398353','Fertiggerichte',1],
+ ['Kaufland','K-Classic','4337185742316','Snacks/Suesses',1],
+ ['Kaufland','K-Classic','4063367398360','Fertiggerichte',0],
+ ['Kaufland','K-Classic','4063367399985','Milch/Joghurt',0],
+ ['Kaufland','K-Classic','4337185533969','Getraenke',0],
+ ['Kaufland','K-Classic','4063367499364','Milch/Joghurt',0],
+ ['Kaufland','K-Classic','4337185470462','Milch/Joghurt',0],
+ ['Kaufland','K-Classic','4337185470509','Milch/Joghurt',0],
+ ['Kaufland','K-Classic','4063367297168','Herzhaft',0],
+ ['Kaufland','K-Classic','4063367330414','Milch/Joghurt',0],
+ ['Kaufland','K-Classic','4300175282017','Milch/Joghurt',0],
+ ['Kaufland','K-Classic','4300175630337','Milch/Joghurt',0],
+ ['Kaufland','K-Classic','4337185457258','Herzhaft',0],
+ ['Kaufland','K-Classic','4337185553820','Milch/Joghurt',0],
+ ['Kaufland','K-Classic','4063367274299','Herzhaft',0],
+ ['Kaufland','K-Classic','4043362513302','Fertiggerichte',0],
+ ['Kaufland','K-Classic','4063367231971','Herzhaft',0],
+ ['Kaufland','K-Classic','4063367505935','Herzhaft',0],
+ ['Kaufland','K-Classic','4337185826788','Snacks/Suesses',0],
+ ['Kaufland','K-Classic','4063367234613','Fertiggerichte',0],
+ ['Kaufland','K-Classic','4300175147910','Fertiggerichte',0],
+ ['Kaufland','K-Classic','4300175533300','Kochen/Backen',0],
+ ['Kaufland','K-Classic','4300175155267','Snacks/Suesses',0],
+ ['Kaufland','K-Classic','4300175338417','Snacks/Suesses',0],
+ ['Kaufland','K-Classic','4300175167093','Fruehstueck',0],
+ ['dm','Alete','4031244004895','Baby/Kinder',1],
+ ['dm','dmBio','4066447350920','Milch/Joghurt',1],
+ ['dm','dmBio','4058172489969','Milch/Joghurt',0],
+ ['dm','dmBio','4058172489983','Milch/Joghurt',0],
+ ['dm','dmBio','4058172776809','Baby/Kinder',0],
+ ['dm','dmBio','4010355193070','Baby/Kinder',0],
+ ['dm','dmBio','9050171438691','Baby/Kinder',0],
+ ['dm','dmBio','4066447077971','Kochen/Backen',0],
+ ['dm','dmBio','4066447328264','Snacks/Suesses',0],
+ ['dm','dmBio','4066447042214','Snacks/Suesses',0],
+ ['dm','dmBio','4066447562644','Snacks/Suesses',0],
+ ['dm','dmBio','4066447758757','Fruehstueck',0],
+ ['dm','dmBio','4066447815849','Snacks/Suesses',0],
+ ['dm','dmBio','4066447523409','Snacks/Suesses',0],
+ ['dm','dmBio','4066447372694','Getraenke',0],
+ ['dm','dmBio','4066447195057','Kochen/Backen',0],
+ ['dm','dmBio','4066447723045','Snacks/Suesses',0],
+ ['dm','dmBio','4066447355604','Getraenke',0],
+ ['dm','dmBio','4066447219951','Brot/Aufstrich',0],
+ ['dm','dmBio','4066447855432','Getraenke',0],
+ ['dm','dmBio','4066447855517','Getraenke',0],
+ ['dm','dmBio','4066447219791','Getraenke',0],
+ ['dm','dmBio','4066447973679','Baby/Kinder',0],
+ ['dm','dmBio','4066447973693','Baby/Kinder',0],
+ ['dm','dmBio','4066447973655','Baby/Kinder',0],
+ ['Rossmann','enerBiO','4305615874463','Snacks/Suesses',0],
+ ['Rossmann','enerBiO','4305615976396','Getraenke',0],
+ ['Rossmann','enerBiO','4305615996325','Brot/Aufstrich',0],
+ ['Rossmann','enerBiO','4068134037732','Brot/Aufstrich',0],
+ ['Rossmann','enerBiO','4068134049599','Snacks/Suesses',0],
+ ['Rossmann','enerBiO','4305615990132','Fertiggerichte',0],
+ ['Rossmann','enerBiO','4068134099976','Fertiggerichte',0],
+ ['Rossmann','enerBiO','4305615998749','Brot/Aufstrich',0],
+ ['Rossmann','enerBiO','4068134100122','Fertiggerichte',0],
+ ['Rossmann','enerBiO','4305615981949','Getraenke',0],
+ ['Rossmann','enerBiO','4305615666785','Kochen/Backen',0],
+ ['Rossmann','enerBiO','4305615810430','Kochen/Backen',0],
+ ['Rossmann','enerBiO','4305615982588','Fertiggerichte',0],
+ ['Rossmann','enerBiO','4305615982021','Getraenke',0],
+ ['Rossmann','enerBiO','4305615783345','Fruehstueck',0],
+ ['Rossmann','enerBiO','4305615971933','Brot/Aufstrich',0],
+ ['Rossmann','enerBiO','4305615986555','Snacks/Suesses',0],
+ ['Rossmann','enerBiO','4068134152602','Kochen/Backen',0],
+ ['Rossmann','enerBiO','4305615664170','Kochen/Backen',0],
+ ['Rossmann','enerBiO','4305615929705','Milch/Joghurt',0],
+ ['Rossmann','enerBiO','4305615982519','Kochen/Backen',0],
+ ['Rossmann','enerBiO','4305615971070','Kochen/Backen',0],
+ ['Rossmann','enerBiO','4068134136756','Fruehstueck',0],
+ ['Rossmann','enerBiO','4068134145604','Fruehstueck',0],
+ ['Rossmann','enerBiO','4305615996370','Getraenke',0]
+];
+let benchResults=[];
+const INACTIVE_EANS=new Set(['4068134162755']); // offizieller Rueckruf / aktuell nicht mehr im Rossmann-Sortiment
+const FETCH_TIMEOUT_MS=9000, MAX_RETRIES=1, REQUEST_DELAY_MS=450;
+const ROSSMANN_SITE_ID='7e43d4bf-0b49-430a-995f-828ac38496d8';
+const OFF_ENDPOINTS=[
+ {name:'OFF world v2',url:e=>`https://world.openfoodfacts.org/api/v2/product/${e}.json?fields=code,product_name,brands,ingredients_text_de,ingredients_text,nutriments,additives_tags,image_front_small_url,last_modified_t`},
+ {name:'OFF DE v2',url:e=>`https://de.openfoodfacts.org/api/v2/product/${e}.json?fields=code,product_name,brands,ingredients_text_de,ingredients_text,nutriments,additives_tags,image_front_small_url,last_modified_t`},
+ {name:'OFF legacy v0',url:e=>`https://world.openfoodfacts.org/api/v0/product/${e}.json`}
+];
+function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
+async function fetchEndpoint(endpoint,e,attempt=0){
+ const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),FETCH_TIMEOUT_MS);
+ try{
+  const resp=await fetch(endpoint.url(e),{signal:ctrl.signal,headers:{'Accept':'application/json'}});clearTimeout(timer);
+  if(!resp.ok){const err=new Error(`HTTP ${resp.status}`);err.httpStatus=resp.status;if((resp.status===429||resp.status>=500)&&attempt<MAX_RETRIES){await sleep(900*(attempt+1));return fetchEndpoint(endpoint,e,attempt+1)}throw err}
+  const data=await resp.json();return {ok:true,data,attempts:attempt+1,httpStatus:resp.status,endpoint:endpoint.name};
+ }catch(err){clearTimeout(timer);const technical=err.name==='AbortError'||err instanceof TypeError||/fetch|network|cors|load|abort/i.test(err.message||'');if(technical&&attempt<MAX_RETRIES){await sleep(900*(attempt+1));return fetchEndpoint(endpoint,e,attempt+1)}return {ok:false,error:err.name==='AbortError'?'Timeout':(err.message||String(err)),attempts:attempt+1,httpStatus:err.httpStatus||null,technical,endpoint:endpoint.name}}
+}
+async function fetchOFF(e){
+ let totalAttempts=0,last=null;
+ for(let i=0;i<OFF_ENDPOINTS.length;i++){
+  if(i) await sleep(500);
+  const r=await fetchEndpoint(OFF_ENDPOINTS[i],e);totalAttempts+=r.attempts||0;last=r;
+  if(r.ok) return {...r,attempts:totalAttempts,fallbackUsed:i>0};
+ }
+ return {...last,attempts:totalAttempts,fallbackUsed:true};
+}
+
+function cleanHtmlText(v){
+ const d=document.createElement('div');d.innerHTML=v||'';return (d.textContent||'').replace(/\\u003c|\\u003e/g,' ').replace(/\\s+/g,' ').trim();
+}
+function extractIngredientCandidateFromText(txt){
+ if(!txt)return '';
+ const decoded=txt.replace(/\\u003c/g,'<').replace(/\\u003e/g,'>').replace(/\\u0026/g,'&');
+ const patterns=[/Zutaten(?:liste)?\\s*[:\\-]\\s*([^<]{15,1500})/i,/ingredients?\\s*[:\\-]\\s*([^<]{15,1500})/i];
+ for(const re of patterns){const m=decoded.match(re);if(m)return cleanHtmlText(m[1]);}
+ return '';
+}
+async function fetchRossmannSyndigo(e){
+ const url=`https://content.syndigo.com/page/${ROSSMANN_SITE_ID}/${e}.json`;
+ const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),FETCH_TIMEOUT_MS);
+ try{const resp=await fetch(url,{signal:ctrl.signal,headers:{Accept:'application/json'}});clearTimeout(timer);if(!resp.ok)return {ok:false,httpStatus:resp.status,error:`HTTP ${resp.status}`,endpoint:'Rossmann Syndigo'};const data=await resp.json();
+  let candidates=[];const walk=x=>{if(!x)return;if(Array.isArray(x))return x.forEach(walk);if(typeof x==='object'){if((x.caption||'').toLowerCase().includes('zutaten')&&x.description)candidates.push(cleanHtmlText(x.description));Object.values(x).forEach(walk)}};walk(data);
+  const ingredients=candidates.sort((a,b)=>b.length-a.length)[0]||'';return {ok:true,ingredients,httpStatus:resp.status,endpoint:'Rossmann Syndigo',confidence:ingredients?'medium':''};
+ }catch(err){clearTimeout(timer);return {ok:false,error:err.name==='AbortError'?'Timeout':(err.message||String(err)),endpoint:'Rossmann Syndigo'};}
+}
+async function fetchRossmannHtml(e){
+ // Browser-PoC: versucht Rossmann-Suche direkt. Viele Browser blockieren dies per CORS; das wird explizit protokolliert.
+ const url=`https://www.rossmann.de/de/search/?text=${encodeURIComponent(e)}`;
+ const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),FETCH_TIMEOUT_MS);
+ try{const resp=await fetch(url,{signal:ctrl.signal,headers:{Accept:'text/html'}});clearTimeout(timer);if(!resp.ok)return {ok:false,httpStatus:resp.status,error:`HTTP ${resp.status}`,endpoint:'Rossmann HTML'};const html=await resp.text();
+  const ing=extractIngredientCandidateFromText(html);return {ok:true,ingredients:ing,httpStatus:resp.status,endpoint:'Rossmann HTML',confidence:ing?'high':''};
+ }catch(err){clearTimeout(timer);return {ok:false,error:err.name==='AbortError'?'Timeout / CORS':(err.message||String(err)),endpoint:'Rossmann HTML'};}
+}
+async function rossmannFallback(e){
+ const html=await fetchRossmannHtml(e);if(html.ok&&html.ingredients)return {...html,adapterUsed:true};
+ const synd=await fetchRossmannSyndigo(e);if(synd.ok&&synd.ingredients)return {...synd,adapterUsed:true,htmlError:html.error||''};
+ return {ok:false,ingredients:'',endpoint:'Rossmann Adapter',error:[html.error,synd.error].filter(Boolean).join(' | ')||'Keine Rossmann-Zutaten gefunden',adapterUsed:true};
+}
+
+async function resolveEAN(e, retailer){
+ if(INACTIVE_EANS.has(e)) return {status:'DISCONTINUED',found:true,fields:{},attempts:0,httpStatus:'',endpoint:'Rossmann status',fallbackUsed:false,rescued:false,error:'Produkt nicht mehr im aktuellen Sortiment'};
+ const v=VERIFIED[e]||null;
+ const net=await fetchOFF(e);
+ let off={},offFound=false;
+ if(net.ok){off=net.data.product||{};offFound=!!net.data.product}
+ const found=offFound||!!v;
+ let f=mergeProduct(off,v);
+ let rossmann=null;
+ if(retailer==='Rossmann' && found && !f.ingredients?.value){
+   rossmann=await rossmannFallback(e);
+   if(rossmann.ok&&rossmann.ingredients){f.ingredients={value:rossmann.ingredients,source:rossmann.endpoint,confidence:rossmann.confidence||'medium',updated:'live'};}
+ }
+ const ing=f.ingredients?.value||'',a=analyse(ing);
+ let status;
+ if(INACTIVE_EANS.has(e)) status='DISCONTINUED';
+ else if(!net.ok && !v) status='TECHNICAL_ERROR';
+ else if(!found) status='NOT_FOUND';
+ else if(!f.ingredients?.value) status='MISSING_INGREDIENTS';
+ else status='ANALYSABLE';
+ return {found,fields:f,analysis:a,status,error:(rossmann&&!rossmann.ok?rossmann.error:(net.ok?'':net.error)),attempts:net.attempts,httpStatus:net.httpStatus,technicalError:!net.ok,endpoint:(rossmann&&rossmann.ok&&rossmann.ingredients?rossmann.endpoint:(net.endpoint||'')),fallbackUsed:!!net.fallbackUsed||!!rossmann,rescued:(!!net.fallbackUsed&&net.ok)||!!(rossmann&&rossmann.ok&&rossmann.ingredients),rossmannAdapter:!!rossmann};
+}
+async function runBenchmark(){
+ const el=document.getElementById('bench'),btn=document.getElementById('benchmark-start');benchResults=[];btn.disabled=true;btn.textContent='Benchmark läuft …';
+ const unique=new Set(BENCHMARK.map(x=>x[2])).size; const counts=Object.fromEntries([...new Set(BENCHMARK.map(x=>x[0]))].map(h=>[h,BENCHMARK.filter(x=>x[0]===h).length])); if(BENCHMARK.length!==200||unique!==200||Object.values(counts).some(n=>n!==25)){el.innerHTML='<span class="error"><b>Benchmark-Set ungültig.</b> Erwartet: 200 eindeutige EANs und 25 je Händler.</span>';btn.disabled=false;btn.textContent='Benchmark starten';return;} el.innerHTML='<b>Preflight OK:</b> 200 eindeutige EANs · 25 je Händler<br><b>0 / '+BENCHMARK.length+'</b> – läuft …';
+ for(let i=0;i<BENCHMARK.length;i++){
+  const [retailer,brand,ean,category,control]=BENCHMARK[i],r=await resolveEAN(ean,retailer),f=r.fields;
+  const row={retailer,brand,ean,category,control,status:r.status,product:r.found?1:0,ingredients:f.ingredients?.value?1:0,nutrition:f.sugar?.value!=null?1:0,analysable:r.status==='ANALYSABLE'?1:0,source:f.ingredients?.source||'',confidence:f.ingredients?.confidence||'',attempts:r.attempts||0,http_status:r.httpStatus||'',endpoint:r.endpoint||'',fallback_used:r.fallbackUsed?1:0,rescued:r.rescued?1:0,rossmann_adapter:r.rossmannAdapter?1:0,error:r.error|| (r.status==='NOT_FOUND'?'Produkt nicht gefunden':r.status==='MISSING_INGREDIENTS'?'Zutaten fehlen':r.status==='DISCONTINUED'?'Nicht mehr im aktuellen Sortiment':'')};
+  benchResults.push(row);el.innerHTML=`<b>${i+1} / ${BENCHMARK.length}</b> – ${ean} (${retailer}) · <b>${r.status}</b>`;
+  await sleep(REQUEST_DELAY_MS);
+ }
+ btn.disabled=false;btn.textContent='Benchmark erneut starten';renderBenchmark();
+}
+function pct(n,d){return d?Math.round(n/d*1000)/10:0}
+function renderBenchmark(){
+ const total=benchResults.length, technical=benchResults.filter(x=>x.status==='TECHNICAL_ERROR').length, valid=benchResults.filter(x=>x.status!=='TECHNICAL_ERROR'&&x.status!=='DISCONTINUED');
+ const discontinued=benchResults.filter(x=>x.status==='DISCONTINUED').length;
+ const n=valid.length,sum=k=>valid.reduce((a,x)=>a+(x[k]||0),0),p=sum('product'),i=sum('ingredients'),nu=sum('nutrition'),an=sum('analysable');
+ const controls=benchResults.filter(x=>x.control),controlOk=controls.filter(x=>x.status==='ANALYSABLE').length;
+ const notFound=valid.filter(x=>x.status==='NOT_FOUND').length,missing=valid.filter(x=>x.status==='MISSING_INGREDIENTS').length;
+ const rescued=benchResults.filter(x=>x.rescued).length,fallbackUsed=benchResults.filter(x=>x.fallback_used).length;
+ let by={};benchResults.forEach(x=>{by[x.retailer]??={total:0,valid:0,tech:0,p:0,i:0};let b=by[x.retailer];b.total++;if(x.status==='TECHNICAL_ERROR')b.tech++;else{b.valid++;b.p+=x.product;b.i+=x.ingredients}});
+ let rows=Object.entries(by).map(([k,v])=>`<tr><td>${k}</td><td>${v.total}</td><td>${v.tech}</td><td>${v.valid?pct(v.p,v.valid)+'%':'–'}</td><td>${v.valid?pct(v.i,v.valid)+'%':'–'}</td></tr>`).join('');
+ let bc={};benchResults.forEach(x=>{bc[x.category]??={total:0,valid:0,tech:0,p:0,i:0};let b=bc[x.category];b.total++;if(x.status==='TECHNICAL_ERROR')b.tech++;else{b.valid++;b.p+=x.product;b.i+=x.ingredients}});
+ let catRows=Object.entries(bc).sort((a,b)=>b[1].total-a[1].total).map(([k,v])=>`<tr><td>${k}</td><td>${v.total}</td><td>${v.tech}</td><td>${v.valid?pct(v.p,v.valid)+'%':'–'}</td><td>${v.valid?pct(v.i,v.valid)+'%':'–'}</td></tr>`).join('');
+ document.getElementById('bench').innerHTML=`<div class='grid'>
+ <div class='result ${technical?'yellow':'green'}'><b>Technisch erfolgreich</b><div style='font-size:26px'>${pct(n,total)}%</div><span class='small'>${n}/${total} · ${technical} Technical Errors</span></div>
+ <div class='result green'><b>Product Coverage</b><div style='font-size:26px'>${pct(p,n)}%</div><span class='small'>${p}/${n} gültige Requests</span></div>
+ <div class='result ${n&&i/n>=.8?'green':'yellow'}'><b>Ingredient Coverage</b><div style='font-size:26px'>${pct(i,n)}%</div><span class='small'>${i}/${n} gültige Requests</span></div>
+ <div class='result'><b>Nutrition Coverage</b><div style='font-size:26px'>${pct(nu,n)}%</div><span class='small'>${nu}/${n} gültige Requests</span></div>
+ <div class='result'><b>Analysierbar</b><div style='font-size:26px'>${pct(an,n)}%</div><span class='small'>${an}/${n} gültige Requests</span></div>
+ <div class='result'><b>Datenlücken</b><div style='font-size:20px;margin-top:5px'>${notFound} unbekannt · ${missing} ohne Zutaten</div><span class='small'>Technical Errors ausgeschlossen</span></div><div class='result green'><b>Fallback gerettet</b><div style='font-size:26px'>${rescued}</div><span class='small'>${fallbackUsed} nutzten einen zweiten Datenpfad</span></div></div>
+ <div class='small' style='margin-top:12px'><b>Kontrollgruppe:</b> ${controlOk}/${controls.length} vollständig analysierbar. <b>Wichtig:</b> TECHNICAL_ERROR und DISCONTINUED werden aus den aktuellen Coverage-Quoten ausgeschlossen. Inaktive Produkte bleiben separat sichtbar.</div>
+ <div style='overflow:auto;margin-top:12px'><table style='width:100%;border-collapse:collapse'><thead><tr><th align='left'>Händler</th><th>n</th><th>Tech. Fehler</th><th>Produkt*</th><th>Zutaten*</th></tr></thead><tbody>${rows}</tbody></table></div>
+ <h3 style='margin:18px 0 6px'>Nach Kategorie</h3><div style='overflow:auto'><table style='width:100%;border-collapse:collapse'><thead><tr><th align='left'>Kategorie</th><th>n</th><th>Tech. Fehler</th><th>Produkt*</th><th>Zutaten*</th></tr></thead><tbody>${catRows}</tbody></table></div>
+ <div class='small muted' style='margin-top:10px'>* Coverage nur auf technisch erfolgreiche Requests. Requests laufen sequentiell mit ${REQUEST_DELAY_MS} ms Pause. Resolver-Kaskade: OFF world v2 → OFF DE v2 → OFF legacy v0; je Endpoint ${MAX_RETRIES} Retry und ${FETCH_TIMEOUT_MS/1000}s Timeout. Verifizierte Händlerdaten bleiben feldweise priorisiert. Rossmann v0.9 versucht bei fehlenden Zutaten zusätzlich Rossmann HTML und danach Syndigo. Browser-CORS wird als Adapterfehler protokolliert; keine Coverage wird erfunden.</div>`;
+}
+function exportCSV(){
+ if(!benchResults.length){alert('Bitte zuerst den Benchmark starten.');return}
+ const cols=['retailer','brand','ean','category','control','status','product','ingredients','nutrition','analysable','source','confidence','attempts','http_status','endpoint','fallback_used','rescued','rossmann_adapter','error'];
+ const q=v=>'"'+String(v??'').replaceAll('"','""')+'"';let csv=cols.join(';')+'\n'+benchResults.map(r=>cols.map(c=>q(r[c])).join(';')).join('\n');
+ const b=new Blob([csv],{type:'text/csv;charset=utf-8'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='klarzutaten-benchmark-v0.9.csv';a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);
+}
+
+const testEANs=['4031244004895','4061458193931','4061459719628','4337256368087','4337256382564','4311501040959','4311501112168','4063367398353','4337185742316','4066447350920','24244664'];
+document.getElementById('tests').innerHTML=testEANs.map(x=>`<button style="margin:6px 5px 0 0;background:#e8eee9;color:#183d2b" onclick="document.getElementById('ean').value='${x}';lookup()">${x}</button>`).join('');
+function find(text,rules){let t=(text||'').toLowerCase();return [...new Set(rules.filter(([k])=>t.includes(k)).map(x=>x[1]))]}
+function analyse(text){let lower=(text||'').toLowerCase();let sweetening=find(text,RULES.sweetening); // context exclusions
+if(/rote[- ]bete[^,;)]*(färb|farb)/i.test(text)) sweetening=sweetening.filter(x=>!x.toLowerCase().includes('bete'));
+return {added:find(text,RULES.added),sweetener:find(text,RULES.sweetener),sweetening,additives:find(text,RULES.additives),confidence:text?'hoch':'niedrig'};}
+function box(cls,title,items,empty){return `<div class="result ${cls}"><div class="tag">${title}</div><div style="margin-top:7px">${items.length?items.map(x=>`<span class="pill">${x}</span>`).join(''):`<b>${empty}</b>`}</div></div>`}
+async function lookup(){
+ const e=document.getElementById('ean').value.trim(),status=document.getElementById('status'),out=document.getElementById('out');out.innerHTML='';
+ if(!/^\d{8,14}$/.test(e)){status.innerHTML='<div class="card error">Bitte eine gültige numerische EAN/GTIN eingeben.</div>';return}
+ status.innerHTML='<div class="card">Produktdaten werden geladen und feldweise zusammengeführt …</div>';
+ try{
+  let r=await fetch(`https://world.openfoodfacts.org/api/v2/product/${e}.json?fields=code,product_name,brands,ingredients_text_de,ingredients_text,nutriments,additives_tags,image_front_small_url,last_modified_t`);
+  let d=await r.json(),off=d.product||{},v=VERIFIED[e]||null;
+  if(!d.product&&!v){status.innerHTML='<div class="card error"><b>Produkt nicht gefunden.</b><br><span class="muted">Keine verifizierte Händlerquelle und kein Open-Food-Facts-Treffer.</span></div>';return}
+  let f=mergeProduct(off,v),ing=f.ingredients?.value||'',a=analyse(ing),sugar=f.sugar?.value,conf=overallConfidence({product:f.product,brand:f.brand,ingredients:f.ingredients,sugar:f.sugar});
+  if(f.noAddedSugar?.value===true && a.added.length===0) a.confidence='sehr hoch';
+  status.innerHTML='';
+  out.innerHTML=`<div class="card"><div class="small muted">${e}</div><h2>${f.product?.value||'Unbenanntes Produkt'}</h2><div class="muted">${f.brand?.value||''}</div><div class="small" style="margin-top:12px"><b>Gesamt-Datenconfidence:</b> ${conf}%</div></div>
+  <div class="grid">${box(a.added.length?'red':'green','Zugesetzter Zucker',a.added,a.added.length?'':'Kein zugesetzter Zucker erkannt')}${box(a.sweetener.length?'yellow':'green','Süßungsmittel',a.sweetener,'Keine erkannt')}${box(a.sweetening.length?'yellow':'green','Süßende Zutaten',a.sweetening,'Keine erkannt')}${box(a.additives.length?'yellow':'green','Zusatzstoffe',a.additives,'Keine in Engine v0.1 erkannt')}</div>
+  <div class="card"><b>Zucker laut Nährwerttabelle</b><div style="font-size:26px;margin-top:5px">${sugar!=null?sugar+' g / 100 g':'nicht verfügbar'}</div><div class="small muted" style="margin-top:8px">${sourceBadge(f.sugar)}</div></div>
+  <div class="card"><b>Zutaten</b><div class="ingredients" style="margin-top:8px">${ing||'<span class="error">Keine Zutatenliste verfügbar – Ingredient-Coverage-Fehler.</span>'}</div><div class="small muted" style="margin-top:10px">${sourceBadge(f.ingredients)}</div></div>
+  <div class="card"><b>Source Resolver v0.6</b><div class="small muted" style="margin:7px 0 12px">Jedes Datenfeld wird unabhängig aus der aktuell besten verfügbaren Quelle gewählt.</div>
+   <div class="small"><b>Produktname:</b> ${sourceBadge(f.product)}<br><b>Marke:</b> ${sourceBadge(f.brand)}<br><b>Zutaten:</b> ${sourceBadge(f.ingredients)}<br><b>Nährwert Zucker:</b> ${sourceBadge(f.sugar)}${f.image?'<br><b>Produktbild:</b> '+sourceBadge(f.image):''}</div>
+   <hr style="border:0;border-top:1px solid #eee;margin:18px 0"><div class="small muted">Analyse-Confidence: <b>${a.confidence}</b>. Händler-/Herstellerdaten haben Vorrang vor Community-Daten; fehlende Felder können aus Open Food Facts ergänzt werden.</div></div>`;
+ }catch(err){status.innerHTML=`<div class="card error"><b>Datenabruf fehlgeschlagen.</b><br>${err.message}<br><span class="muted">Bei lokalem file://-Start kann ein Browser CORS blockieren; dann über einen einfachen Webhost bereitstellen.</span></div>`}
+}
+</script></body></html>
