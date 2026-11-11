@@ -1,41 +1,113 @@
-import { getOpenFoodFacts } from "./adapters/openfoodfacts.js";
-import { getRossmannSyndigo } from "./adapters/syndigo.js";
-import { getRossmannByUrl, getRossmannByProduct } from "./adapters/rossmann.js";
-import { getDmByUrl } from "./adapters/dm.js";
-import { analyseIngredients } from "./engine/ingredient-engine.js";
+import { getOpenFoodFactsProduct } from "./adapters/openfoodfacts.js";
+import { getRossmannByProduct } from "./adapters/rossmann.js";
+import { analyzeIngredients } from "./engine/ingredient-engine.js";
 
-function merge(base, candidate) {
-  if (!candidate?.found) return base;
-  const p = candidate.product || {};
-  for (const [key, value] of Object.entries(p)) {
-    if (value != null && value !== "" && (base.product[key] == null || base.product[key] === "")) {
-      base.product[key] = value;
-      base.fields[key] = { source: candidate.source, source_url: candidate.source_url || null, confidence: candidate.confidence || "medium" };
-    }
-  }
-  base.sources.push({ source: candidate.source, source_url: candidate.source_url || null, confidence: candidate.confidence || null });
-  return base;
+function hasIngredients(product) {
+  return Boolean(
+    product?.ingredients_text &&
+    String(product.ingredients_text).trim().length > 0
+  );
 }
 
-export async function resolveProduct(ean, hints = {}) {
-  const result = { ean, product: { ean }, fields: {}, sources: [] };
-  const off = await getOpenFoodFacts(ean);
-  merge(result, off);
+function normalizeProduct(ean, product = {}) {
+  return {
+    ean,
+    product_name: product.product_name || "",
+    brands: product.brands || "",
+    quantity: product.quantity || "",
+    image_url:
+      product.image_front_url ||
+      product.image_url ||
+      "",
+    ingredients_text: product.ingredients_text || "",
+    nutriments: product.nutriments || {},
+    allergens: product.allergens || "",
+    source: product.source || "Open Food Facts",
+    confidence: product.confidence || "medium",
+    source_url: product.source_url || null
+  };
+}
 
-  // Explicit URL remains useful for debugging, but normal production requests no
-  // longer require it. Rossmann discovery derives candidate URLs from OFF metadata.
-  if (!result.product.ingredients && hints.rossmann_url) {
-    merge(result, await getRossmannByUrl(ean, hints.rossmann_url));
-  }
-  if (!result.product.ingredients && result.product.name) {
-    merge(result, await getRossmannByProduct(ean, result.product));
-  }
-  if (!result.product.ingredients) merge(result, await getRossmannSyndigo(ean));
-  if (!result.product.ingredients && hints.dm_url) merge(result, await getDmByUrl(ean, hints.dm_url));
+export async function resolveProduct(ean) {
+  // 1. Open Food Facts bleibt unsere primäre Produktquelle.
+  const offResult = await getOpenFoodFactsProduct(ean);
 
-  result.status = !result.product.name && !result.product.ingredients
-    ? "NOT_FOUND"
-    : result.product.ingredients ? "ANALYSABLE" : "MISSING_INGREDIENTS";
-  result.analysis = analyseIngredients(result.product.ingredients || "");
-  return result;
+  if (!offResult?.found || !offResult?.product) {
+    return {
+      status: "NOT_FOUND",
+      ean,
+      product: null,
+      analysis: null,
+      sources: []
+    };
+  }
+
+  let product = normalizeProduct(ean, offResult.product);
+
+  const sources = [
+    {
+      source: offResult.source || "Open Food Facts",
+      confidence: offResult.confidence || "medium",
+      fields: [
+        "product_name",
+        "brands",
+        "quantity",
+        "image_url",
+        ...(hasIngredients(product) ? ["ingredients_text"] : [])
+      ]
+    }
+  ];
+
+  // 2. Wenn OFF bereits Zutaten liefert, direkt analysieren.
+  if (hasIngredients(product)) {
+    return {
+      status: "ANALYSABLE",
+      ean,
+      product,
+      analysis: analyzeIngredients(product.ingredients_text),
+      sources
+    };
+  }
+
+  // 3. Zutaten fehlen:
+  //    Rossmann serverseitig als Händler-Fallback versuchen.
+  const rossmannResult = await getRossmannByProduct(ean, product);
+
+  if (
+    rossmannResult?.found &&
+    rossmannResult?.ingredients_text
+  ) {
+    product = {
+      ...product,
+      ingredients_text: rossmannResult.ingredients_text,
+      source: rossmannResult.source,
+      confidence: rossmannResult.confidence,
+      source_url: rossmannResult.url || null
+    };
+
+    sources.push({
+      source: rossmannResult.source,
+      confidence: rossmannResult.confidence,
+      fields: ["ingredients_text"],
+      url: rossmannResult.url || null
+    });
+
+    return {
+      status: "ANALYSABLE",
+      ean,
+      product,
+      analysis: analyzeIngredients(product.ingredients_text),
+      sources
+    };
+  }
+
+  // 4. Produkt wurde gefunden, aber wir haben weiterhin
+  //    keine auswertbare Zutatenliste.
+  return {
+    status: "MISSING_INGREDIENTS",
+    ean,
+    product,
+    analysis: null,
+    sources
+  };
 }
