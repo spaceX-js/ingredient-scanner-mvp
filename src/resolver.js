@@ -1,6 +1,6 @@
 import { getOpenFoodFacts } from "./adapters/openfoodfacts.js";
 import { getRossmannSyndigo } from "./adapters/syndigo.js";
-import { getRossmannByUrl } from "./adapters/rossmann.js";
+import { getRossmannByUrl, getRossmannByProduct } from "./adapters/rossmann.js";
 import { getDmByUrl } from "./adapters/dm.js";
 import { analyseIngredients } from "./engine/ingredient-engine.js";
 
@@ -22,11 +22,20 @@ export async function resolveProduct(ean, hints = {}) {
   const off = await getOpenFoodFacts(ean);
   merge(result, off);
 
-  if (!result.product.ingredients && hints.rossmann_url) merge(result, await getRossmannByUrl(ean, hints.rossmann_url));
+  // Explicit URL remains useful for debugging, but normal production requests no
+  // longer require it. Rossmann discovery derives candidate URLs from OFF metadata.
+  if (!result.product.ingredients && hints.rossmann_url) {
+    merge(result, await getRossmannByUrl(ean, hints.rossmann_url));
+  }
+  if (!result.product.ingredients && result.product.name) {
+    merge(result, await getRossmannByProduct(ean, result.product));
+  }
   if (!result.product.ingredients) merge(result, await getRossmannSyndigo(ean));
   if (!result.product.ingredients && hints.dm_url) merge(result, await getDmByUrl(ean, hints.dm_url));
 
-  result.status = !result.product.name && !result.product.ingredients ? "NOT_FOUND" : result.product.ingredients ? "ANALYSABLE" : "MISSING_INGREDIENTS";
+  result.status = !result.product.name && !result.product.ingredients
+    ? "NOT_FOUND"
+    : result.product.ingredients ? "ANALYSABLE" : "MISSING_INGREDIENTS";
   result.analysis = analyseIngredients(result.product.ingredients || "");
   return result;
 }
