@@ -1,12 +1,12 @@
 {
   "name": "ingredient-scanner-mvp",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "check": "node --check src/index.js && node --check src/resolver.js && node --check src/adapters/rossmann.js && node --check src/adapters/openfoodfacts.js && node --check src/adapters/syndigo.js && node --check src/adapters/dm.js && node --check src/engine/ingredient-engine.js",
+    "check": "node --check src/index.js && node --check src/resolver.js && node --check src/adapters/rossmann.js && node --check src/adapters/openfoodfacts.js && node --check src/adapters/syndigo.js && node --check src/adapters/dm.js && node --check src/engine/ingredient-engine.js && node --check src/product-index.js",
     "test": "node test/run-tests.mjs"
   },
   "devDependencies": {

@@ -8,4 +8,8 @@ const rr=fs.readFileSync(new URL('./fixtures/rossmann-search-rsc.txt',import.met
 const a=analyseIngredients('Wasser, Zuckerrübensirup, Traubenzucker, Maltit, E 330'); assert.equal(a.added_sugar,true); assert.ok(a.added_sugar_matches.includes('Zuckerrübensirup')); assert.equal(a.sweeteners_present,true); assert.ok(a.additives.some(x=>x.code==='E330'));
 const b=analyseIngredients('Zuckerfreie Bonbons mit Aroma'); assert.equal(b.added_sugar,false);
 assert.equal(extractRossmannIngredients('<h2>Zutaten</h2>Wasser, Zucker<h2>Nährwerte</h2>'), 'Wasser, Zucker');
-console.log('v0.3.0 tests: OK');
+console.log('v0.4.0 base tests: OK');
+import { hintsFromIndex } from '../src/product-index.js';
+const hi=hintsFromIndex({retailers:[{retailer:'dm',external_id:'3118830'},{retailer:'rossmann',external_id:'227170',product_url:'https://www.rossmann.de/de/x/p/4068134219077'}]});
+assert.equal(hi.dm_dan,'3118830'); assert.equal(hi.rossmann_dan,'227170'); assert.match(hi.rossmann_url,/4068134219077$/);
+console.log('v0.4.0 index tests: OK');

@@ -1,5 +1,5 @@
 const CONF={none:0,low:1,medium:2,high:3,verified:4};
-const SOURCE={"dm":40,"Rossmann HTML":40,"Rossmann Search":38,"Rossmann/Syndigo":25,"Open Food Facts":20};
+const SOURCE={"KlarZutaten Index":45,"dm":40,"Rossmann HTML":40,"Rossmann Search":38,"Rossmann/Syndigo":25,"Open Food Facts":20};
 export function createMergeResult(ean){return {ean,product:{ean},fields:{},sources:[],resolver_trace:[]}}
 export function addCandidate(result,candidate){
   if(!candidate) return result;
