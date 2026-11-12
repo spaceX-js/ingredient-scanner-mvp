@@ -1,0 +1,386 @@
+{
+    "a11yLabel": "Marke: Alete; Produktname: Kinderteller Spaghetti Bolognese ab 1 Jahr, 250 g; Rechtliche Kategorie: Beikost; Preis: 2,15 €; Grundpreis: 0,25 kg (8,60 € je 1 kg)",
+    "about": {
+        "heading": "Infos zum Produkt"
+    },
+    "brand": {
+        "image": {
+            "alt": "Alete",
+            "ratio": 2.834285714285714,
+            "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,w_280,h_180/v1771139827/assets/mp/brands/subbrand_5756_default/subbrand_5756_default.png"
+        },
+        "name": "Alete"
+    },
+    "breadcrumbs": [
+        "Baby & Kind",
+        "Babynahrung & Getränke",
+        "Babygläschen & Co."
+    ],
+    "dan": 3118830,
+    "descriptionGroups": [
+        {
+            "contentBlock": [
+                {
+                    "bulletpoints": [
+                        "Bio-Fertiggericht für Kinder",
+                        "Geeignet ab 1 Jahr",
+                        "Mit viel Gemüse",
+                        "Mild-würzig"
+                    ]
+                },
+                {
+                    "texts": [
+                        "Der Alete Kinderteller Spaghetti Bolognese ab einem Jahr ist die ideale Lösung, wenn es schnell gehen muss, aber nicht auf eine ausgewogene Mahlzeit verzichtet werden soll. Das Gericht in Bio-Qualität schmeckt mit viel Gemüse und einer kindgerechten Würzung aus feinen Kräutern fast wie selbst gekocht. In wenigen Minuten in der Mikrowelle oder im Wasserbad erwärmt, steht im Handumdrehen ein leckerer Teller für kleine Feinschmecker auf dem Tisch."
+                    ]
+                },
+                {
+                    "texts": [
+                        "dm-Artikelnummer: 3118830",
+                        "GTIN: 4031244004895"
+                    ]
+                }
+            ],
+            "header": "Produktbeschreibung",
+            "isExpanded": true,
+            "showInInfoHintLayer": false
+        },
+        {
+            "contentBlock": [
+                {
+                    "descriptionList": [
+                        {
+                            "description": "ab 12. Monat",
+                            "title": "Altersempfehlung"
+                        },
+                        {
+                            "description": "Bio, ohne Zuckerzusatz",
+                            "title": "Produkteigenschaften"
+                        },
+                        {
+                            "description": "herzhaft",
+                            "title": "Geschmack"
+                        }
+                    ]
+                }
+            ],
+            "header": "Produktmerkmale",
+            "isExpanded": false,
+            "showInInfoHintLayer": false
+        },
+        {
+            "contentBlock": [
+                {
+                    "texts": [
+                        "Dieses Produkt verfügt über ein Umwelt- oder Nachhaltigkeitssiegel. Mit dieser Information möchten wir Transparenz über entsprechende Eigenschaft(en) des Produktes schaffen."
+                    ]
+                },
+                {
+                    "links": [
+                        {
+                            "href": "https://www.dm.de/tipps-und-trends/nachhaltigkeit/umweltsiegel",
+                            "linkText": "Mehr zu den Umwelt- und Nachhaltigkeitssiegeln",
+                            "type": "EXTERNAL"
+                        }
+                    ]
+                }
+            ],
+            "header": "Infos zu den Umwelt- und Nachhaltigkeitssiegeln",
+            "isExpanded": false,
+            "showInInfoHintLayer": false
+        },
+        {
+            "contentBlock": [
+                {
+                    "texts": [
+                        "ÖKO-Kontrollstelle: EE-ÖKO-03"
+                    ]
+                }
+            ],
+            "header": "Pflichthinweise",
+            "isExpanded": true,
+            "showInInfoHintLayer": true
+        },
+        {
+            "contentBlock": [
+                {
+                    "texts": [
+                        "Füttere dein Kind nur unter Aufsicht und wenn es sitzt. Erwärmte Reste nicht wieder verwenden. Da wir ausschließlich natürliche Zutaten verwenden, kann die Farbe des beutelinhaltsleicht variieren - besonders nach der Aufbewahrung im Kühlschrank."
+                    ]
+                }
+            ],
+            "header": "Verwendungshinweise",
+            "isExpanded": false,
+            "showInInfoHintLayer": false
+        },
+        {
+            "contentBlock": [
+                {
+                    "texts": [
+                        "Genaue Produktbezeichnung: \nNudeln mit Gemüse und Rindfleisch (BIO)\n\nZutaten: Wasser, Karotten* 19%, SPAGHETTI* gekocht (Wasser, DINKELWEIZENMEHL*) 15%, Tomaten* 10%, Rindfleisch* 8%, Zwiebeln*, Tomatenmark* 5%, Pastinaken* 4%, Kartoffelstärke*, Knoblauch*,\nRapsöl*, Thymian*, Oregano*, Petersilie*, schwarzer Pfeffer*.\nKann Spuren von EI enthalten.\n*aus kontrolliert biologischer Landwirtschaft\n\nBitte beachte die Hinweise zu Allergenen."
+                    ]
+                }
+            ],
+            "header": "Zutaten",
+            "isExpanded": false,
+            "showInInfoHintLayer": false
+        },
+        {
+            "contentBlock": [
+                {
+                    "texts": [
+                        "enthält glutenhaltiges Getreide\nkann Spuren enthalten Eier und Eiderivate"
+                    ]
+                }
+            ],
+            "header": "Allergene",
+            "isExpanded": false,
+            "showInInfoHintLayer": false
+        },
+        {
+            "contentBlock": [
+                {
+                    "images": [
+                        {
+                            "ratio": 1.0,
+                            "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,w_200,h_200/v1784200101/assets/mp/preparation-symbols/media_preparation_symbol_heat_and_serve_default/media_preparation_symbol_heat_and_serve_default"
+                        }
+                    ],
+                    "texts": [
+                        "Verzehrfertig. Wichtig: Bitte prüfe vor dem Verzehr, dass der Beutel unbeschädigt ist und beachte die Hinweise zur Zubereitung. Fall s sich etwas Flüssigkeit absetzt: Bitte einfach umrühren.\nZubereitung in der Mikrowelle: Beutel 2cm öffnen und bei 2 Minuten* bei h oher Stufe in der Mikrowelle erwärmen. Umrühren, Temperatur prüfen, fertig! * Zeit kann je nach Gerät abweichen\nZubereitung im Wass erbad: Geschlossenen Beutel im Wasserbad für 5-10 Minuten erwärmen. Umrühren, Temperatur prüfen, fertig!\nDu möchtest nur eine Teilm enge entnehmen?\nDann gewünschte Teilmenge entnehmen und in der Mikrowelle erwärmen."
+                    ]
+                }
+            ],
+            "header": "Zubereitung",
+            "isExpanded": false,
+            "showInInfoHintLayer": false
+        },
+        {
+            "contentBlock": [
+                {
+                    "table": [
+                        [
+                            "Durchschnittliche Nährwertangaben",
+                            "pro 100 g"
+                        ],
+                        [
+                            "Brennwert",
+                            "228 kJ / 54 kcal"
+                        ],
+                        [
+                            "Fett",
+                            "0,7 g"
+                        ],
+                        [
+                            "davon gesättigte Fettsäuren",
+                            "0,1 g"
+                        ],
+                        [
+                            "Kohlenhydrate",
+                            "8,3 g"
+                        ],
+                        [
+                            "davon Zucker",
+                            "2,9 g"
+                        ],
+                        [
+                            "Ballaststoffe",
+                            "1,5 g"
+                        ],
+                        [
+                            "Eiweiß",
+                            "3 g"
+                        ],
+                        [
+                            "Salz",
+                            "0,04 g"
+                        ],
+                        [
+                            "Natrium",
+                            "12,1 mg"
+                        ]
+                    ]
+                }
+            ],
+            "header": "Nährwerte",
+            "isExpanded": false,
+            "showInInfoHintLayer": false
+        },
+        {
+            "contentBlock": [
+                {
+                    "texts": [
+                        "Angebrochenen Beutel verschlossen im Kühlschrank aufbewahren und innerhalb von einem Tag aufbrauchen. Kühl und trocken lagern. Ungeöffnet (bei max. 25°C) mindestens haltbar bis: TT/MM/JJJJ"
+                    ]
+                }
+            ],
+            "header": "Aufbewahrungshinweise",
+            "isExpanded": false,
+            "showInInfoHintLayer": false
+        },
+        {
+            "contentBlock": [
+                {
+                    "texts": [
+                        "Humana Vertriebs GmbH\nPostfach 28 61 29, 28361 Bremen\nhttp://www.aletebewusst.de/"
+                    ]
+                }
+            ],
+            "header": "Anschrift des Unternehmens",
+            "isExpanded": false,
+            "showInInfoHintLayer": false
+        }
+    ],
+    "gtin": 4031244004895,
+    "hideCouponEyecatcher": false,
+    "images": [
+        {
+            "alt": "Kinderteller Spaghetti Bolognese ab 1 Jahr Alete",
+            "backgroundColor": "#F9F3F1",
+            "isAiGenerated": false,
+            "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_440,w_500/v1768483985/assets/pas/images/2feeae41-56ba-4659-8c2e-af437f7a5887/alete-kinderteller-spaghetti-bolognese-ab-1-jahr",
+            "thumbnailSrc": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_116,w_116/v1768483985/assets/pas/images/2feeae41-56ba-4659-8c2e-af437f7a5887/alete-kinderteller-spaghetti-bolognese-ab-1-jahr",
+            "zoomSrc": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_1200,w_1200/v1768483985/assets/pas/images/2feeae41-56ba-4659-8c2e-af437f7a5887/alete-kinderteller-spaghetti-bolognese-ab-1-jahr"
+        },
+        {
+            "alt": "Kinderteller Spaghetti Bolognese ab 1 Jahr Alete",
+            "backgroundColor": "#F1F4F9",
+            "isAiGenerated": false,
+            "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_440,w_500/v1774485949/assets/pas/images/37fc24cb-f0a1-4f40-9d56-689574174e46/alete-kinderteller-spaghetti-bolognese-ab-1-jahr",
+            "thumbnailSrc": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_116,w_116/v1774485949/assets/pas/images/37fc24cb-f0a1-4f40-9d56-689574174e46/alete-kinderteller-spaghetti-bolognese-ab-1-jahr",
+            "zoomSrc": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_1200,w_1200/v1774485949/assets/pas/images/37fc24cb-f0a1-4f40-9d56-689574174e46/alete-kinderteller-spaghetti-bolognese-ab-1-jahr"
+        },
+        {
+            "alt": "Kinderteller Spaghetti Bolognese ab 1 Jahr Alete",
+            "backgroundColor": "#F1F4F9",
+            "isAiGenerated": false,
+            "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_440,w_500/v1774485921/assets/pas/images/dab22bc6-d007-4c62-a829-253263013e6b/alete-kinderteller-spaghetti-bolognese-ab-1-jahr",
+            "thumbnailSrc": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_116,w_116/v1774485921/assets/pas/images/dab22bc6-d007-4c62-a829-253263013e6b/alete-kinderteller-spaghetti-bolognese-ab-1-jahr",
+            "zoomSrc": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_1200,w_1200/v1774485921/assets/pas/images/dab22bc6-d007-4c62-a829-253263013e6b/alete-kinderteller-spaghetti-bolognese-ab-1-jahr"
+        },
+        {
+            "alt": "Kinderteller Spaghetti Bolognese ab 1 Jahr Alete",
+            "backgroundColor": "#F9F3F1",
+            "isAiGenerated": false,
+            "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_440,w_500/v1774485930/assets/pas/images/d89a80d6-5720-4d17-b3f9-a30a2d7a2a32/alete-kinderteller-spaghetti-bolognese-ab-1-jahr",
+            "thumbnailSrc": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_116,w_116/v1774485930/assets/pas/images/d89a80d6-5720-4d17-b3f9-a30a2d7a2a32/alete-kinderteller-spaghetti-bolognese-ab-1-jahr",
+            "zoomSrc": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_1200,w_1200/v1774485930/assets/pas/images/d89a80d6-5720-4d17-b3f9-a30a2d7a2a32/alete-kinderteller-spaghetti-bolognese-ab-1-jahr"
+        },
+        {
+            "alt": "Kinderteller Spaghetti Bolognese ab 1 Jahr Alete",
+            "backgroundColor": "#F9F4F1",
+            "isAiGenerated": false,
+            "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_440,w_500/v1774485913/assets/pas/images/968b16d4-4b23-4340-b73f-72bac844251b/alete-kinderteller-spaghetti-bolognese-ab-1-jahr",
+            "thumbnailSrc": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_116,w_116/v1774485913/assets/pas/images/968b16d4-4b23-4340-b73f-72bac844251b/alete-kinderteller-spaghetti-bolognese-ab-1-jahr",
+            "zoomSrc": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_1200,w_1200/v1774485913/assets/pas/images/968b16d4-4b23-4340-b73f-72bac844251b/alete-kinderteller-spaghetti-bolognese-ab-1-jahr"
+        },
+        {
+            "alt": "Kinderteller Spaghetti Bolognese ab 1 Jahr Alete",
+            "backgroundColor": "#F9F2F1",
+            "isAiGenerated": false,
+            "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_440,w_500/v1774485939/assets/pas/images/7368dc85-646b-41b2-a543-126b0d816586/alete-kinderteller-spaghetti-bolognese-ab-1-jahr",
+            "thumbnailSrc": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_116,w_116/v1774485939/assets/pas/images/7368dc85-646b-41b2-a543-126b0d816586/alete-kinderteller-spaghetti-bolognese-ab-1-jahr",
+            "zoomSrc": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_1200,w_1200/v1774485939/assets/pas/images/7368dc85-646b-41b2-a543-126b0d816586/alete-kinderteller-spaghetti-bolognese-ab-1-jahr"
+        }
+    ],
+    "isPharmacy": false,
+    "metadata": {
+        "canonical": "https://www.dm.de/p/d/3118830/alete-kinderteller-spaghetti-bolognese-ab-1-jahr",
+        "categoryCodes": [
+            "050501"
+        ],
+        "currency": "EUR",
+        "description": "Der Alete Kinderteller Spaghetti Bolognese ab einem Jahr ist die ideale Lösung, wenn es schnell gehen muss, aber nicht auf eine ausgewogene Mahlzeit verzichtet...",
+        "isPharmacy": false,
+        "pageTitle": "Alete Kinderteller Spaghetti Bolognese ab 1 Jahr, 250 g dauerhaft günstig online kaufen | dm.de",
+        "price": 2.15,
+        "robots": "index, follow, noodp"
+    },
+    "netPrice": {
+        "infos": [
+            "0,25 kg (8,04 € je 1 kg)",
+            "exkl. MwSt. zzgl. <linking>Versand</linking>"
+        ],
+        "notIncreasedSince": {
+            "text": "nicht erhöht seit 28.01.2026",
+            "title": "dm-Dauerpreis"
+        },
+        "price": {
+            "current": {
+                "value": "2,01 €"
+            }
+        }
+    },
+    "pills": [
+        "Bio",
+        "Ohne Zuckerzusatz"
+    ],
+    "price": {
+        "infos": [
+            "0,25 kg (8,60 € je 1 kg)",
+            "inkl. MwSt. zzgl. <linking>Versand</linking>"
+        ],
+        "notIncreasedSince": {
+            "text": "nicht erhöht seit 28.01.2026",
+            "title": "dm-Dauerpreis"
+        },
+        "paybackInfo": "Du erhältst <bold>1 PAYBACK</bold> °Punkt",
+        "price": {
+            "current": {
+                "value": "2,15 €"
+            }
+        }
+    },
+    "seals": [
+        {
+            "description": "Das EU-Bio-Label bedeutet, dass das Produkt den Bedingungen und Regeln der Europäischen Union für die ökologische / biologische Produktion entspricht.",
+            "image": {
+                "alt": "EU-Bio-Label",
+                "ratio": 1.5,
+                "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,w_300,h_300/v1765272213/assets/mp/seal/ghs_eu_organic_farming_default/ghs_eu_organic_farming_default"
+            },
+            "subtitles": [
+                "EE-ÖKO-03",
+                "EU/Nicht-EU Landwirtschaft"
+            ],
+            "title": "EU-Bio-Label"
+        },
+        {
+            "description": "Das BIO Güte- und Prüfsiegel steht für eine nachhaltige Produktion mit Erzeugnissen aus ökologischem Landbau.",
+            "image": {
+                "alt": "Bio-Siegel Deutschland",
+                "ratio": 1.204724409448819,
+                "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,w_300,h_300/v1765271628/assets/mp/seal/ghs_bio_label_german_default/ghs_bio_label_german_default"
+            },
+            "title": "Bio-Siegel Deutschland"
+        }
+    ],
+    "self": "/p/d/3118830/alete-kinderteller-spaghetti-bolognese-ab-1-jahr",
+    "seoInformation": {
+        "structuredData": {
+            "brand": "Alete",
+            "category": "Baby & Kind > Babynahrung & Getränke > Babygläschen & Co.",
+            "description": "Der Alete Kinderteller Spaghetti Bolognese ab einem Jahr ist die ideale Lösung, wenn es schnell gehen muss, aber nicht auf eine ausgewogene Mahlzeit verzichtet...",
+            "gtin": "4031244004895",
+            "id": "https://www.dm.de/p/d/3118830/alete-kinderteller-spaghetti-bolognese-ab-1-jahr",
+            "image": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_1200,w_1200/v1768483985/assets/pas/images/2feeae41-56ba-4659-8c2e-af437f7a5887/alete-kinderteller-spaghetti-bolognese-ab-1-jahr",
+            "itemCondition": "NewCondition",
+            "name": "Kinderteller Spaghetti Bolognese ab 1 Jahr, 250 g",
+            "price": 2.15,
+            "priceCurrency": "EUR",
+            "sku": "3118830"
+        }
+    },
+    "share": {
+        "label": "Produkt teilen",
+        "message": "Gerade bei dm entdeckt: Alete Kinderteller Spaghetti Bolognese ab 1 Jahr",
+        "title": "Produktempfehlung für Dich",
+        "url": "https://www.dm.de/applink/p/d/3118830/alete-kinderteller-spaghetti-bolognese-ab-1-jahr?appPageType=productdetails&appProductId=3118830&utm_medium=app&utm_source=dm&utm_campaign=pdsteilen&utm_content=laufend"
+    },
+    "shelfLocation": "Baby & Kind · Babynahrung & Getränke",
+    "showConfidenceBuildingMeasuresApp": false,
+    "showConfidenceBuildingMeasuresWeb": false,
+    "title": {
+        "headline": "Kinderteller Spaghetti Bolognese ab 1 Jahr, 250 g",
+        "subheadline": "Beikost"
+    }
+}

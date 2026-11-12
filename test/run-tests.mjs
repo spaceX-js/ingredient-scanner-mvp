@@ -1,0 +1,11 @@
+import fs from 'node:fs'; import assert from 'node:assert/strict';
+import { analyseIngredients } from '../src/engine/ingredient-engine.js';
+import { parseDmProduct } from '../src/adapters/dm.js';
+import { parseRossmannSearchRsc, extractRossmannIngredients } from '../src/adapters/rossmann.js';
+const dm=JSON.parse(fs.readFileSync(new URL('./fixtures/dm-product.json',import.meta.url),'utf8'));
+const dp=parseDmProduct(dm); assert.equal(dp.ean,'4031244004895'); assert.equal(dp.dan,'3118830'); assert.match(dp.ingredients,/Karotten\* 19%/); assert.equal(dp.nutrition['davon Zucker'],'2,9 g'); assert.equal(dp.withoutAddedSugar,true);
+const rr=fs.readFileSync(new URL('./fixtures/rossmann-search-rsc.txt',import.meta.url),'utf8'); const rp=parseRossmannSearchRsc(rr,'4068134219077'); assert.equal(rp.dan,'227170'); assert.equal(rp.brand,'enerBiO'); assert.match(rp.productUrl,/\/p\/4068134219077$/);
+const a=analyseIngredients('Wasser, Zuckerrübensirup, Traubenzucker, Maltit, E 330'); assert.equal(a.added_sugar,true); assert.ok(a.added_sugar_matches.includes('Zuckerrübensirup')); assert.equal(a.sweeteners_present,true); assert.ok(a.additives.some(x=>x.code==='E330'));
+const b=analyseIngredients('Zuckerfreie Bonbons mit Aroma'); assert.equal(b.added_sugar,false);
+assert.equal(extractRossmannIngredients('<h2>Zutaten</h2>Wasser, Zucker<h2>Nährwerte</h2>'), 'Wasser, Zucker');
+console.log('v0.3.0 tests: OK');

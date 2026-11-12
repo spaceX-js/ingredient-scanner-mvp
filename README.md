@@ -1,70 +1,45 @@
-# Ingredient Scanner MVP / KlarZutaten
+# KlarZutaten / Ingredient Scanner MVP v0.3.0
 
-MVP für eine deutsche Barcode-Plattform, die Zutaten verständlich macht. Das Repository ist für **Cloudflare Workers + Static Assets** vorbereitet.
+Cloudflare-Worker-MVP für Barcode-/GTIN-basierte Produktauflösung und verständliche Zutatenanalyse.
 
 ## Architektur
 
-Browser → Cloudflare Worker `/api/product/:ean` → Multi-Source Resolver → Ingredient Engine.
+`EAN -> unabhängige Quellen -> Field Merger -> Ingredient Engine`
 
-Aktuell implementiert:
-- Open Food Facts: World v2 → DE v2 → Legacy
-- Rossmann/Syndigo Enhanced Content als Fallback (mittlere Confidence)
-- Rossmann-HTML-Parser für bekannte Produkt-URLs (serverseitig; kein Browser-CORS)
-- dm-HTML-Parser für bekannte Produkt-URLs
-- Ingredient Engine v0.2.4: zugesetzter Zucker, Süßungsmittel, süßende Zutaten, ausgewählte Zusatzstoffe
-- Feldweise Quellen-/Confidence-Metadaten
+Quellen in v0.3.0:
+- Open Food Facts
+- Rossmann v1: EAN-Discovery, Produktseite, Syndigo-Fallback
+- dm v1: EAN-Suche (wenn die Live-Suche DAN liefert) und strukturierte Product-Detail-API über DAN
 
-Noch offen:
-- stabile EAN→Produkt-URL-Discovery für Rossmann und dm
-- persistente Produktdatenbank (später z. B. Cloudflare D1)
-- Kamera-Barcodescanner
-- vollständige Zusatzstofftaxonomie
-- 200-EAN-Regressionstest als maschinenlesbare Fixture übernehmen
+Der Resolver fragt Quellen unabhängig ab. Eine vorhandene OFF-Zutatenliste verhindert **nicht** mehr, dass Händlerdaten geprüft werden. Pro Feld gewinnt der Kandidat mit der höheren Confidence/Source-Priorität; `fields` dokumentiert Quelle und Confidence.
 
-## Lokal starten
+## API
+- `GET /api/health`
+- `GET /api/version`
+- `GET /api/product/{EAN}`
+- optional für dm-Diagnose: `?dm_dan=3118830`
 
-Voraussetzung: Node.js 20+.
+## Datenstatus
+Ein technisch funktionierender Adapter garantiert keine 100% Händler-Coverage. Fehlen Zutaten beim Händler, meldet der Resolver `MISSING_INGREDIENTS` statt Daten zu erfinden.
 
+## Tests
+Echte Browser-Fixtures liegen unter `test/fixtures/`:
+- Rossmann Search/RSC für `4068134219077`
+- dm Product Detail für `4031244004895` / DAN `3118830`
+
+`npm test` prüft Parser und Ingredient Engine offline.
+
+## Entwicklung
 ```bash
 npm install
+npm test
 npm run dev
 ```
 
-Danach die von Wrangler angezeigte lokale URL öffnen.
-
-## Tests
-
+Deployment:
 ```bash
-npm test
-```
-
-Cloudflare empfiehlt für neue Workers-Projekte die Workers-Vitest-Integration; dieses Repo ist dafür konfiguriert.
-
-## Deployment
-
-```bash
-npx wrangler login
 npm run deploy
 ```
 
-Alternativ das GitHub-Repository in Cloudflare verbinden und als Deploy-Befehl `npm run deploy` verwenden.
-
-## API
-
-`GET /api/health`
-
-`GET /api/product/{EAN}`
-
-Optionale Test-Hints, solange die Händler-URL-Discovery noch fehlt:
-
-`?rossmann_url=https://www.rossmann.de/...`
-
-`?dm_url=https://www.dm.de/...`
-
-## Datenqualität
-
-KlarZutaten trennt Datenquelle und Analyse. Syndigo Enhanced Product Content wird nicht automatisch als vollständige gesetzliche Zutatenliste behandelt und erhält deshalb niedrigere Confidence als eine vollständige Händler-Zutatenliste.
-
 ## Recht / Betrieb
-
-Vor einem öffentlichen kommerziellen Launch müssen Nutzungsbedingungen, Robots-/Abrufregeln und Datenbanklizenzen der jeweiligen Quellen geprüft werden. Open Food Facts steht unter ODbL; die Datenarchitektur sollte diese Lizenzgrenzen berücksichtigen.
+Vor produktiver oder kommerzieller Nutzung Händlerbedingungen, robots.txt, Lizenzen und zulässige Abruffrequenzen prüfen. Produktdaten cachen; keine unnötigen Händlerabrufe pro Nutzerrequest.
