@@ -11,7 +11,7 @@ Aktuell implementiert:
 - Rossmann/Syndigo Enhanced Content als Fallback (mittlere Confidence)
 - Rossmann-HTML-Parser für bekannte Produkt-URLs (serverseitig; kein Browser-CORS)
 - dm-HTML-Parser für bekannte Produkt-URLs
-- Ingredient Engine v0.2.1: zugesetzter Zucker, Süßungsmittel, süßende Zutaten, ausgewählte Zusatzstoffe
+- Ingredient Engine v0.2.2: zugesetzter Zucker, Süßungsmittel, süßende Zutaten, ausgewählte Zusatzstoffe
 - Feldweise Quellen-/Confidence-Metadaten
 
 Noch offen:

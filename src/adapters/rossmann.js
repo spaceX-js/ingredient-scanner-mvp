@@ -58,7 +58,7 @@ export function discoverRossmannUrlFromHtml(html = "", ean) {
 
 async function fetchHtml(url) {
   const res = await fetch(url, {
-    headers: { "Accept": "text/html,application/xhtml+xml", "Accept-Language": "de-DE,de;q=0.9", "User-Agent": "Mozilla/5.0 (compatible; KlarZutaten/0.2.1)" },
+    headers: { "Accept": "text/html,application/xhtml+xml", "Accept-Language": "de-DE,de;q=0.9", "User-Agent": "Mozilla/5.0 (compatible; KlarZutaten/0.2.2)" },
     redirect: "follow"
   });
   if (!res.ok) return { ok: false, status: res.status, url: res.url || url, html: "" };
@@ -66,37 +66,47 @@ async function fetchHtml(url) {
 }
 
 export async function discoverRossmannProductUrl(ean) {
-  const q = encodeURIComponent(ean);
-  const candidates = [
-    `${BASE}/de/search?q=${q}`,
-    `${BASE}/de/suche?q=${q}`,
-    `${BASE}/de/search?text=${q}`,
-    `${BASE}/de/search/?q=${q}`
-  ];
+  // Verified against the live Rossmann search flow (Nov 2026):
+  // GET /de/search?text={EAN}. Do not hardcode the transient _rsc parameter.
+  const searchUrl = `${BASE}/de/search?text=${encodeURIComponent(ean)}`;
   const trace = [];
-  for (const url of candidates) {
-    try {
-      const page = await fetchHtml(url); trace.push({ url, http_status: page.status });
-      if (!page.ok) continue;
-      const found = discoverRossmannUrlFromHtml(page.html, ean);
-      if (found) return { found: true, url: found, trace };
-      if (page.url && page.url.includes(`/p/${ean}`)) return { found: true, url: page.url, trace };
-    } catch (error) { trace.push({ url, error: String(error?.message || error) }); }
+  try {
+    const page = await fetchHtml(searchUrl);
+    trace.push({ step: "search", url: searchUrl, http_status: page.status });
+    if (!page.ok) {
+      return { found: false, reason: "search_http_error", trace };
+    }
+
+    // In case Rossmann changes to a redirect-based flow later.
+    if (page.url && page.url.includes(`/p/${ean}`)) {
+      return { found: true, url: page.url, trace };
+    }
+
+    const found = discoverRossmannUrlFromHtml(page.html, ean);
+    if (found) {
+      trace.push({ step: "product_link", url: found });
+      return { found: true, url: found, trace };
+    }
+
+    return { found: false, reason: "product_link_missing", trace };
+  } catch (error) {
+    trace.push({ step: "search", url: searchUrl, error: String(error?.message || error) });
+    return { found: false, reason: "search_http_error", trace };
   }
-  return { found: false, trace };
 }
 
 export async function getRossmannByEan(ean) {
   const discovery = await discoverRossmannProductUrl(ean);
-  if (!discovery.found) return { found: false, source: "Rossmann HTML", reason: "ean_discovery_failed", trace: discovery.trace };
+  if (!discovery.found) return { found: false, source: "Rossmann HTML", reason: discovery.reason || "product_link_missing", trace: discovery.trace };
   try {
     const page = await fetchHtml(discovery.url);
-    if (!page.ok) return { found: false, source: "Rossmann HTML", reason: "product_fetch_failed", http_status: page.status, trace: discovery.trace };
-    if (!page.html.includes(String(ean))) return { found: false, source: "Rossmann HTML", reason: "ean_not_verified", source_url: page.url, trace: discovery.trace };
+    if (!page.ok) return { found: false, source: "Rossmann HTML", reason: "product_page_error", http_status: page.status, trace: discovery.trace };
+    if (!page.html.includes(String(ean))) return { found: false, source: "Rossmann HTML", reason: "ean_mismatch", source_url: page.url, trace: discovery.trace };
     const ingredients = extractRossmannIngredients(page.html);
     const title = clean((page.html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || "").replace(/\s*\|\s*ROSSMANN.*$/i, "");
     return {
       found: true, source: "Rossmann HTML", source_url: page.url, confidence: ingredients ? "high" : "medium",
+      reason: ingredients ? null : "ingredients_missing",
       product: { ean, name: title || null, ingredients: ingredients || null }, trace: discovery.trace
     };
   } catch (error) {
