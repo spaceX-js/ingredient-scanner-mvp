@@ -21,7 +21,8 @@ export function extractRossmannIngredients(html = "") {
     /"name"\s*:\s*"Zutaten"[\s\S]{0,500}?"(?:value|text|description)"\s*:\s*"([\s\S]{10,4000}?)"/i
   ];
   for (const re of structured) {
-    const m = text.match(re); if (m?.[1]) { const v = clean(m[1]); if (v.length >= 10) return v; }
+    const m = text.match(re);
+    if (m?.[1]) { const v = clean(m[1]); if (v.length >= 10) return v; }
   }
   const marker = /(?:>\s*Zutaten\s*<|"Zutaten"|Zutaten\s*:)/ig;
   let m;
@@ -36,80 +37,123 @@ export function extractRossmannIngredients(html = "") {
   return null;
 }
 
-function absoluteRossmannUrl(href) {
-  const decoded = decodeHtml(href).replace(/\\\//g, "/");
-  if (decoded.startsWith("https://www.rossmann.de/")) return decoded;
-  if (decoded.startsWith("/")) return BASE + decoded;
-  return null;
-}
-
-export function discoverRossmannUrlFromHtml(html = "", ean) {
-  const escaped = String(ean).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const patterns = [
-    new RegExp(`(?:href=|\\\"url\\\"\\s*:\\s*)[\\\"']([^\\\"']*\\/p\\/${escaped}(?:[?#][^\\\"']*)?)[\\\"']`, "i"),
-    new RegExp(`(https?:\\/\\/www\\.rossmann\\.de\\/de\\/[^\\\"'<>\\s]+\\/p\\/${escaped})`, "i"),
-    new RegExp(`(\\/de\\/[^\\\"'<>\\s]+\\/p\\/${escaped})`, "i")
-  ];
-  for (const re of patterns) {
-    const m = decodeHtml(html).match(re); if (m?.[1]) return absoluteRossmannUrl(m[1]);
-  }
-  return null;
-}
-
-async function fetchHtml(url) {
+async function fetchText(url, accept = "text/html,application/xhtml+xml") {
   const res = await fetch(url, {
-    headers: { "Accept": "text/html,application/xhtml+xml", "Accept-Language": "de-DE,de;q=0.9", "User-Agent": "Mozilla/5.0 (compatible; KlarZutaten/0.2.2)" },
+    headers: {
+      "Accept": accept,
+      "Accept-Language": "de-DE,de;q=0.9",
+      "User-Agent": "Mozilla/5.0 (compatible; KlarZutaten/0.2.3)"
+    },
     redirect: "follow"
   });
-  if (!res.ok) return { ok: false, status: res.status, url: res.url || url, html: "" };
-  return { ok: true, status: res.status, url: res.url || url, html: await res.text() };
+  return { ok: res.ok, status: res.status, url: res.url || url, text: res.ok ? await res.text() : "", contentType: res.headers.get("content-type") || "" };
 }
 
-export async function discoverRossmannProductUrl(ean) {
-  // Verified against the live Rossmann search flow (Nov 2026):
-  // GET /de/search?text={EAN}. Do not hardcode the transient _rsc parameter.
-  const searchUrl = `${BASE}/de/search?text=${encodeURIComponent(ean)}`;
+function walk(value, visit) {
+  if (value == null) return;
+  if (Array.isArray(value)) { for (const item of value) walk(item, visit); return; }
+  if (typeof value === "object") { visit(value); for (const item of Object.values(value)) walk(item, visit); }
+}
+
+function exactProductFromJson(data, ean) {
+  let match = null;
+  walk(data, obj => {
+    if (match) return;
+    const candidateEan = String(obj.ean ?? obj.id ?? obj.gtin ?? obj.code ?? "");
+    const url = obj.productUrl ?? obj.url ?? obj.product_url ?? null;
+    if (candidateEan === String(ean) && url && String(url).includes(`/p/${ean}`)) match = obj;
+  });
+  return match;
+}
+
+function productFromRsc(text, ean) {
+  const decoded = decodeHtml(text);
+  const eanEsc = String(ean).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const urlMatch = decoded.match(new RegExp(`"productUrl"\\s*:\\s*"([^"]*\\/p\\/${eanEsc})"`, "i"));
+  if (!urlMatch) return null;
+  const around = decoded.slice(Math.max(0, urlMatch.index - 1200), Math.min(decoded.length, urlMatch.index + 2500));
+  const name = (around.match(/"name"\s*:\s*"([^"]+)"/i) || [])[1] || null;
+  const brandName = (around.match(/"brandName"\s*:\s*"([^"]+)"/i) || [])[1] || null;
+  const dan = (around.match(/"dan"\s*:\s*"([^"]+)"/i) || [])[1] || null;
+  const image = (around.match(/"image"\s*:\s*\{[^}]*"url"\s*:\s*"([^"]+)"/i) || [])[1] || null;
+  return { ean: String(ean), productUrl: urlMatch[1], name, brandName, dan, image: image ? { url: image } : null };
+}
+
+function normalizeSearchProduct(obj, ean) {
+  const url = obj.productUrl ?? obj.url ?? obj.product_url;
+  return {
+    ean: String(ean),
+    name: obj.name ?? obj.productName ?? null,
+    brand: obj.brandName ?? obj.brand ?? null,
+    dan: obj.dan ?? obj.articleNumber ?? null,
+    image: obj.image?.url ?? obj.imageUrl ?? null,
+    productUrl: url?.startsWith("http") ? url : url ? BASE + url : null
+  };
+}
+
+export async function discoverRossmannProduct(ean) {
   const trace = [];
-  try {
-    const page = await fetchHtml(searchUrl);
-    trace.push({ step: "search", url: searchUrl, http_status: page.status });
-    if (!page.ok) {
-      return { found: false, reason: "search_http_error", trace };
-    }
+  const query = `pageIndex=0&text=${encodeURIComponent(ean)}&showRetailMedia=true&pageSize=24`;
+  const apiCandidates = [
+    `${BASE}/de/search.ws/v3/search/products/by-text?${query}`,
+    `${BASE}/search.ws/v3/search/products/by-text?${query}`
+  ];
 
-    // In case Rossmann changes to a redirect-based flow later.
-    if (page.url && page.url.includes(`/p/${ean}`)) {
-      return { found: true, url: page.url, trace };
+  for (const url of apiCandidates) {
+    try {
+      const res = await fetchText(url, "application/json,text/plain,*/*");
+      trace.push({ step: "search_api", url, http_status: res.status, content_type: res.contentType });
+      if (!res.ok || !res.text) continue;
+      try {
+        const data = JSON.parse(res.text);
+        const product = exactProductFromJson(data, ean);
+        if (product) return { found: true, product: normalizeSearchProduct(product, ean), trace, discovery: "search_api" };
+      } catch {
+        const product = productFromRsc(res.text, ean);
+        if (product) return { found: true, product: normalizeSearchProduct(product, ean), trace, discovery: "search_api_text" };
+      }
+    } catch (error) {
+      trace.push({ step: "search_api", url, error: String(error?.message || error) });
     }
-
-    const found = discoverRossmannUrlFromHtml(page.html, ean);
-    if (found) {
-      trace.push({ step: "product_link", url: found });
-      return { found: true, url: found, trace };
-    }
-
-    return { found: false, reason: "product_link_missing", trace };
-  } catch (error) {
-    trace.push({ step: "search", url: searchUrl, error: String(error?.message || error) });
-    return { found: false, reason: "search_http_error", trace };
   }
+
+  // Fallback: the public search page may itself expose the product in its RSC payload.
+  const searchUrl = `${BASE}/de/search?text=${encodeURIComponent(ean)}`;
+  try {
+    const page = await fetchText(searchUrl);
+    trace.push({ step: "search_page", url: searchUrl, http_status: page.status });
+    if (page.ok) {
+      const product = productFromRsc(page.text, ean);
+      if (product) return { found: true, product: normalizeSearchProduct(product, ean), trace, discovery: "search_page_rsc" };
+    }
+  } catch (error) {
+    trace.push({ step: "search_page", url: searchUrl, error: String(error?.message || error) });
+  }
+
+  return { found: false, reason: "product_link_missing", trace };
 }
 
 export async function getRossmannByEan(ean) {
-  const discovery = await discoverRossmannProductUrl(ean);
-  if (!discovery.found) return { found: false, source: "Rossmann HTML", reason: discovery.reason || "product_link_missing", trace: discovery.trace };
+  const discovery = await discoverRossmannProduct(ean);
+  if (!discovery.found) return { found: false, source: "Rossmann HTML", reason: discovery.reason, trace: discovery.trace };
+  const p = discovery.product;
+  if (!p.productUrl) return { found: false, source: "Rossmann HTML", reason: "product_link_missing", trace: discovery.trace };
+
   try {
-    const page = await fetchHtml(discovery.url);
+    const page = await fetchText(p.productUrl);
     if (!page.ok) return { found: false, source: "Rossmann HTML", reason: "product_page_error", http_status: page.status, trace: discovery.trace };
-    if (!page.html.includes(String(ean))) return { found: false, source: "Rossmann HTML", reason: "ean_mismatch", source_url: page.url, trace: discovery.trace };
-    const ingredients = extractRossmannIngredients(page.html);
-    const title = clean((page.html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || "").replace(/\s*\|\s*ROSSMANN.*$/i, "");
+    if (!page.text.includes(String(ean))) return { found: false, source: "Rossmann HTML", reason: "ean_mismatch", source_url: page.url, trace: discovery.trace };
+    const ingredients = extractRossmannIngredients(page.text);
     return {
-      found: true, source: "Rossmann HTML", source_url: page.url, confidence: ingredients ? "high" : "medium",
+      found: true,
+      source: "Rossmann HTML",
+      source_url: page.url,
+      confidence: ingredients ? "high" : "medium",
       reason: ingredients ? null : "ingredients_missing",
-      product: { ean, name: title || null, ingredients: ingredients || null }, trace: discovery.trace
+      product: { ean, name: p.name, brand: p.brand, dan: p.dan, image: p.image, ingredients: ingredients || null },
+      trace: [...discovery.trace, { step: "product_page", url: page.url, http_status: page.status, ingredients_found: Boolean(ingredients) }]
     };
   } catch (error) {
-    return { found: false, source: "Rossmann HTML", reason: String(error?.message || error), trace: discovery.trace };
+    return { found: false, source: "Rossmann HTML", reason: "product_page_error", trace: discovery.trace, error: String(error?.message || error) };
   }
 }
