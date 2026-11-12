@@ -1,12 +1,18 @@
 {
-  "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "ingredient-scanner-mvp",
-  "main": "./src/index.js",
-  "compatibility_date": "2026-11-11",
+  "main": "src/index.js",
+  "compatibility_date": "2026-11-01",
+
   "assets": {
     "directory": "./public",
-    "binding": "ASSETS",
-    "run_worker_first": ["/api/*"]
+    "binding": "ASSETS"
   },
-  "observability": { "enabled": true }
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ingredient-scanner-db",
+      "database_id": "2b7dc2fb-e684-4d9b-999b-3cb4d7282078"
+    }
+  ]
 }
