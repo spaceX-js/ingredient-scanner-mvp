@@ -7,6 +7,9 @@ import { APP_VERSION } from "./version.js";
 
 function merge(base, candidate) {
   base.resolver_trace.push({ source: candidate?.source || "unknown", found: Boolean(candidate?.found), confidence: candidate?.confidence || null, reason: candidate?.reason || null });
+  if (Array.isArray(candidate?.trace)) {
+    for (const detail of candidate.trace) base.resolver_trace.push({ source: candidate?.source || "unknown", ...detail });
+  }
   if (!candidate?.found) return base;
   const p = candidate.product || {};
   for (const [key, value] of Object.entries(p)) {
