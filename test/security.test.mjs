@@ -10,7 +10,7 @@ const EAN = "4068134219077";
 const DM_EAN = "4031244004895";
 const dmFixture = JSON.parse(fs.readFileSync(new URL("./fixtures/dm-product.json", import.meta.url), "utf8"));
 const req = (path, headers = {}) => new Request("https://example.test" + path, { headers });
-const call = async (path, env = {}, headers = {}) => { const res = await worker.fetch(req(path, headers), env, { waitUntil() {} }); return { res, body: await res.json() }; };
+const call = async (path, env = { ENABLE_ROSSMANN: "1" }, headers = {}) => { const res = await worker.fetch(req(path, headers), env, { waitUntil() {} }); return { res, body: await res.json() }; };
 
 test("GTIN-Prüfziffer", () => {
   assert.ok(isValidGtin(EAN)); assert.ok(isValidGtin(DM_EAN)); assert.ok(isValidGtin("40170725"));
@@ -50,7 +50,7 @@ test("Mit Token: nur Rossmann-Host und 5-9-stellige DAN; Antwort wird nicht geca
 
   const f = stubFetch([["openfoodfacts", () => jsonRes({ product: { product_name: "X" } })]]);
   try {
-    const { res, body } = await call(`/api/product/${EAN}?rossmann_url=${encodeURIComponent("https://evil.example/x")}`, { ADMIN_TOKEN: "t" }, { "x-admin-token": "t" });
+    const { res, body } = await call(`/api/product/${EAN}?rossmann_url=${encodeURIComponent("https://evil.example/x")}`, { ADMIN_TOKEN: "t", ENABLE_ROSSMANN: "1" }, { "x-admin-token": "t" });
     assert.ok(!f.calls.some((u) => u.includes("evil.example")));
     assert.equal(res.headers.get("cache-control"), "no-store");
     assert.equal(body.hints_ignored, undefined);
@@ -60,7 +60,7 @@ test("Mit Token: nur Rossmann-Host und 5-9-stellige DAN; Antwort wird nicht geca
 test("dm_dan eines anderen Produkts wird nicht unter dieser EAN übernommen (EAN-Abgleich)", async () => {
   const f = stubFetch([["openfoodfacts", () => jsonRes({ product: { product_name: "Haferriegel" } })], ["/detail/DE/dan/3118830", () => jsonRes(dmFixture)]]);
   try {
-    const { body } = await call(`/api/product/${EAN}?dm_dan=3118830`, { ADMIN_TOKEN: "t" }, { "x-admin-token": "t" });
+    const { body } = await call(`/api/product/${EAN}?dm_dan=3118830`, { ADMIN_TOKEN: "t", ENABLE_ROSSMANN: "1" }, { "x-admin-token": "t" });
     assert.equal(body.product.dm_dan, undefined);
     assert.ok(body.resolver_trace.some((t) => t.source === "dm" && t.reason === "ean_mismatch"));
     assert.ok(!/Karotten/.test(body.product.ingredients || ""));
@@ -70,7 +70,7 @@ test("dm_dan eines anderen Produkts wird nicht unter dieser EAN übernommen (EAN
 test("Rossmann-URL-Hint mit fremder EAN auf der Seite wird abgelehnt", async () => {
   const f = stubFetch([["openfoodfacts", () => jsonRes({ product: { product_name: "X" } })], ["www.rossmann.de/de/x/p/" + EAN, () => htmlRes("<h2>Zutaten</h2><div>Fremde Seite, Zucker</div><h2>Nährwerte</h2>")]]);
   try {
-    const { body } = await call(`/api/product/${EAN}?rossmann_url=${encodeURIComponent("https://www.rossmann.de/de/x/p/" + EAN)}`, { ADMIN_TOKEN: "t" }, { "x-admin-token": "t" });
+    const { body } = await call(`/api/product/${EAN}?rossmann_url=${encodeURIComponent("https://www.rossmann.de/de/x/p/" + EAN)}`, { ADMIN_TOKEN: "t", ENABLE_ROSSMANN: "1" }, { "x-admin-token": "t" });
     assert.ok(body.resolver_trace.some((t) => t.reason === "ean_mismatch"));
     assert.ok(!/Fremde Seite/.test(body.product.ingredients || ""));
   } finally { f.restore(); }

@@ -21,18 +21,20 @@ export async function resolveProduct(ean, hints = {}, env = {}, ctx = null) {
   else if (index) r.resolver_trace.push({ source: "KlarZutaten Index", found: true, reason: fresh ? "fresh_hit_upstream_skipped" : "mapping_or_stale", retailer_mappings: index.retailers?.length || 0 });
   else r.resolver_trace.push({ source: "KlarZutaten Index", found: false, reason: env.DB ? "mapping_missing" : "db_unbound" });
 
+  // Rossmann liefert dem Worker nur eine Client Challenge (Bot-Schutz). Abruf aus, bis eine legitime Quelle da ist.
+  const rossmannOn = env.ENABLE_ROSSMANN === "1";
   if (!fresh) {
     // Unabhängige Quellen parallel: kürzere Antwortzeit bei gleicher Anzahl Abrufe.
     const [off, rossmann, dm] = await Promise.all([
       getOpenFoodFacts(ean),
-      effective.rossmann_url ? getRossmannByUrl(ean, effective.rossmann_url, { dan: effective.rossmann_dan || null }) : getRossmannByEan(ean),
+      rossmannOn ? (effective.rossmann_url ? getRossmannByUrl(ean, effective.rossmann_url, { dan: effective.rossmann_dan || null }) : getRossmannByEan(ean)) : null,
       effective.dm_dan ? getDmByDan(effective.dm_dan, ean) : getDmByEan(ean)
     ]);
     addCandidate(r, off);
     addCandidate(r, rossmann);
     addCandidate(r, dm);
     // Syndigo ist nur Enhanced Content (niedrige Confidence): nur fragen, wenn nichts Besseres da ist.
-    if (confidenceRank(r.fields.ingredients?.confidence) < confidenceRank("high")) addCandidate(r, await getRossmannSyndigo(ean));
+    if (rossmannOn && confidenceRank(r.fields.ingredients?.confidence) < confidenceRank("high")) addCandidate(r, await getRossmannSyndigo(ean));
   }
 
   const p = r.product;

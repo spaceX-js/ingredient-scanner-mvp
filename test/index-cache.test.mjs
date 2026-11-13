@@ -19,7 +19,7 @@ const dmRoutes = () => [["guided-search", () => jsonRes({ products: [{ gtin: DM_
 test("Frische Händlerdaten werden gespeichert, OFF-only-Daten nicht", async () => {
   const db = new FakeD1(); const f = stubFetch([off(), ...rossmannRoutes()]);
   try {
-    const r = await resolveProduct(EAN, {}, { DB: db });
+    const r = await resolveProduct(EAN, {}, { DB: db, ENABLE_ROSSMANN: "1" });
     assert.equal(r.status, "ANALYSABLE");
     assert.equal(r.product.ingredients, "Haferflocken 45 %, Zucker, Kakao");
     const ing = db.fields.get(`${EAN}|ingredients`);
@@ -33,7 +33,7 @@ test("Frische Händlerdaten werden gespeichert, OFF-only-Daten nicht", async () 
 test("Nur OFF-Daten: nichts wird in D1 geschrieben", async () => {
   const db = new FakeD1(); const f = stubFetch([off()]);
   try {
-    const r = await resolveProduct(EAN, {}, { DB: db });
+    const r = await resolveProduct(EAN, {}, { DB: db, ENABLE_ROSSMANN: "1" });
     assert.equal(r.product.ingredients, "Hafer, Zucker (OFF)");
     assert.equal(db.writes, 0);
   } finally { f.restore(); }
@@ -41,10 +41,10 @@ test("Nur OFF-Daten: nichts wird in D1 geschrieben", async () => {
 
 test("Zweiter Aufruf innerhalb der TTL: Cache-Treffer ohne Upstream-Abrufe", async () => {
   const db = new FakeD1(); let f = stubFetch([off(), ...rossmannRoutes()]);
-  try { await resolveProduct(EAN, {}, { DB: db }); } finally { f.restore(); }
+  try { await resolveProduct(EAN, {}, { DB: db, ENABLE_ROSSMANN: "1" }); } finally { f.restore(); }
   f = stubFetch([]);
   try {
-    const r = await resolveProduct(EAN, {}, { DB: db });
+    const r = await resolveProduct(EAN, {}, { DB: db, ENABLE_ROSSMANN: "1" });
     assert.equal(f.calls.length, 0);
     assert.equal(r.index.cache, "hit");
     assert.equal(r.product.ingredients, "Haferflocken 45 %, Zucker, Kakao");
@@ -54,12 +54,12 @@ test("Zweiter Aufruf innerhalb der TTL: Cache-Treffer ohne Upstream-Abrufe", asy
 
 test("Nach Ablauf der TTL wird neu abgerufen und der Wert aktualisiert", async () => {
   const db = new FakeD1(); let f = stubFetch([off(), ...rossmannRoutes("Haferflocken, Kakao")]);
-  try { await resolveProduct(EAN, {}, { DB: db }); } finally { f.restore(); }
+  try { await resolveProduct(EAN, {}, { DB: db, ENABLE_ROSSMANN: "1" }); } finally { f.restore(); }
   const key = `${EAN}|ingredients`; const old = new Date(Date.now() - 30 * 86400e3).toISOString();
   db.fields.set(key, { ...db.fields.get(key), verified_at: old });
   f = stubFetch([off(), ...rossmannRoutes("Haferflocken, Kakao, Honig")]);
   try {
-    const r = await resolveProduct(EAN, {}, { DB: db });
+    const r = await resolveProduct(EAN, {}, { DB: db, ENABLE_ROSSMANN: "1" });
     assert.equal(r.index.cache, "miss");
     assert.equal(r.product.ingredients, "Haferflocken, Kakao, Honig");
     assert.equal(r.fields.ingredients.cached, undefined);
@@ -72,7 +72,7 @@ test("Kein Confidence-Laundering: gespeicherter OFF-Wert (medium) schlägt frisc
   db.seedField(EAN, "ingredients", "Alter OFF-Wert, Zucker", { source: "Open Food Facts", confidence: "medium" });
   const f = stubFetch([off(), ...rossmannRoutes("Haferflocken, Kakao")]);
   try {
-    const r = await resolveProduct(EAN, {}, { DB: db });
+    const r = await resolveProduct(EAN, {}, { DB: db, ENABLE_ROSSMANN: "1" });
     assert.equal(r.product.ingredients, "Haferflocken, Kakao");
     assert.equal(r.fields.ingredients.source, "Rossmann HTML");
   } finally { f.restore(); }
@@ -101,14 +101,14 @@ test("isFresh: nur geprüfte Händlerquelle innerhalb der TTL", () => {
 test("dm: EAN->DAN wird gelernt; danach nutzt der Resolver das Mapping statt der Suche", async () => {
   const db = new FakeD1(); let f = stubFetch([...dmRoutes()]);
   try {
-    const r = await resolveProduct(DM_EAN, {}, { DB: db });
+    const r = await resolveProduct(DM_EAN, {}, { DB: db, ENABLE_ROSSMANN: "1" });
     assert.equal(r.product.dm_dan, "3118830");
     assert.equal(db.retailers.find((x) => x.retailer === "dm").external_id, "3118830");
   } finally { f.restore(); }
   const key = `${DM_EAN}|ingredients`; db.fields.set(key, { ...db.fields.get(key), verified_at: new Date(Date.now() - 30 * 86400e3).toISOString() });
   f = stubFetch([...dmRoutes()]);
   try {
-    await resolveProduct(DM_EAN, {}, { DB: db });
+    await resolveProduct(DM_EAN, {}, { DB: db, ENABLE_ROSSMANN: "1" });
     assert.ok(!f.calls.some((u) => u.includes("guided-search")), "Suche wird übersprungen");
     assert.ok(f.calls.some((u) => u.includes("/detail/DE/dan/3118830")));
   } finally { f.restore(); }
@@ -117,7 +117,7 @@ test("dm: EAN->DAN wird gelernt; danach nutzt der Resolver das Mapping statt der
 test("dm- und Rossmann-IDs überschreiben sich nicht gegenseitig", async () => {
   const f = stubFetch([...rossmannRoutes(), ["guided-search", () => jsonRes({ products: [{ gtin: EAN, dan: 3118830 }] })], ["/detail/DE/dan/3118830", () => jsonRes({ ...dmFixture, gtin: EAN })]]);
   try {
-    const r = await resolveProduct(EAN, {}, {});
+    const r = await resolveProduct(EAN, {}, { ENABLE_ROSSMANN: "1" });
     assert.equal(r.product.rossmann_dan, "227170"); assert.equal(r.product.dm_dan, "3118830");
     assert.match(r.product.rossmann_url, /rossmann\.de/); assert.match(r.product.dm_url || "x", /dm\.de|x/);
   } finally { f.restore(); }
@@ -126,10 +126,17 @@ test("dm- und Rossmann-IDs überschreiben sich nicht gegenseitig", async () => {
 test("Ohne DB (oder defektes Schema) bleibt der Lookup funktionsfähig", async () => {
   const f = stubFetch([off(), ...rossmannRoutes()]);
   try {
-    assert.equal((await resolveProduct(EAN, {}, {})).status, "ANALYSABLE");
+    assert.equal((await resolveProduct(EAN, {}, { ENABLE_ROSSMANN: "1" })).status, "ANALYSABLE");
     const broken = { prepare() { throw new Error("no such table: products"); } };
-    const r = await resolveProduct(EAN, {}, { DB: broken });
+    const r = await resolveProduct(EAN, {}, { DB: broken, ENABLE_ROSSMANN: "1" });
     assert.equal(r.status, "ANALYSABLE");
     assert.ok(r.resolver_trace.some((t) => t.reason === "index_unavailable"));
   } finally { f.restore(); }
+});
+
+test("Rossmann ist standardmäßig aus (kein Abruf ohne ENABLE_ROSSMANN)", async () => {
+  const hits = [];
+  const f = stubFetch([["openfoodfacts", () => jsonRes({ status: 0 })], ["rossmann", () => { hits.push("rossmann"); return htmlRes(""); }], ["syndigo", () => { hits.push("syndigo"); return jsonRes({}); }]]);
+  try { await resolveProduct(EAN, {}, {}); } finally { f.restore(); }
+  assert.deepEqual(hits, []);
 });
