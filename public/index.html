@@ -55,12 +55,19 @@ pre{white-space:pre-wrap;word-break:break-word;background:#f8fafc;padding:12px;b
 .capture .row button{flex:1}
 .progress{height:6px;border-radius:3px;background:#e2e8f0;overflow:hidden;margin-top:8px}.progress i{display:block;height:100%;width:0;background:var(--ink);transition:width .2s}
 .ok{color:var(--green);font-size:14px;margin:8px 0 0}
+.sugar{display:flex;gap:16px;align-items:baseline;flex-wrap:wrap}
+.sugar .big{font-size:34px;font-weight:800;line-height:1}.sugar .sub{color:var(--muted);font-size:14px}
+.meter{position:relative;height:10px;border-radius:5px;background:linear-gradient(90deg,var(--green) 0 12.5%,#d97706 12.5% 56.25%,var(--red) 56.25% 100%);margin:12px 0 4px}
+.meter b{position:absolute;top:-4px;width:4px;height:18px;border-radius:2px;background:var(--ink);transform:translateX(-2px)}
+.scale{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+button.pill{border:0;cursor:pointer;font:inherit;font-size:13px;color:inherit}button.pill:focus-visible{outline:2px solid var(--ink)}
+.explain{margin-top:8px;padding:12px;border-radius:12px;background:#f8fafc;border:1px solid var(--line);font-size:14px;line-height:1.5}.explain b{display:block;margin-bottom:2px}
 .foot{margin-top:18px;font-size:12px;color:var(--muted);line-height:1.5}
 </style>
 </head>
 <body>
 <main class="wrap">
-  <div class="brand">KlarZutaten <small>v<span id="appVersion">0.6.1</span></small></div>
+  <div class="brand">KlarZutaten <small>v<span id="appVersion">0.7.0</span></small></div>
   <h1>Was steckt wirklich drin?</h1>
   <p class="lead">Barcode scannen und sehen, ob Zucker, Süßungsmittel oder Zusatzstoffe enthalten sind.</p>
 
@@ -89,6 +96,7 @@ pre{white-space:pre-wrap;word-break:break-word;background:#f8fafc;padding:12px;b
 <script type="module">
 import { decodeEan, toGray } from "./ean-decoder.js";
 import { extractIngredientText } from "./ingredient-text.js";
+import { explain } from "./sugar-lexicon.js";
 (function(){
 const $=s=>document.querySelector(s);
 const eanIn=$('#ean'),goBtn=$('#go'),out=$('#out'),scanBtn=$('#scan'),cam=$('#camera'),video=$('#video'),camErr=$('#camErr'),camHint=$('#camHint');
@@ -96,6 +104,7 @@ fetch('/api/version').then(r=>r.json()).then(v=>{$('#appVersion').textContent=v.
 
 const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pill=(t,c='')=>`<span class="pill ${c}">${esc(t)}</span>`;
+const termPill=(t,c)=>`<button type="button" class="pill ${c}" data-term="${esc(t)}">${esc(t)}</button>`;
 const safeImg=u=>{try{const x=new URL(u);return x.protocol==='https:'?x.href:null}catch{return null}};
 const reEsc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 
@@ -117,6 +126,17 @@ function highlight(text,words){
   return h.replace(re,'<mark>$1</mark>');
 }
 
+function sugarBlock(sa,as){
+  if(!sa)return as.ingredients_available?'<h4>Zuckermenge</h4><p class="hint" style="margin:0">Keine Nährwerte vorhanden, die Zuckermenge ist unbekannt.</p>':'';
+  const LV={low:'niedrig',medium:'mittel',high:'hoch'};
+  const pos=Math.max(0,Math.min(100,sa.grams_per_100g/40*100));
+  let h=`<h4>Zucker gesamt</h4><div class="sugar"><span class="big">${esc(String(sa.grams_per_100g).replace('.',','))} g</span><span class="sub">pro 100 g · etwa ${esc(String(sa.teaspoons_per_100g).replace('.',','))} Teelöffel · ${esc(LV[sa.level]||'')}</span></div>`;
+  h+=`<div class="meter"><b style="left:${pos}%"></b></div><div class="scale"><span>0 g</span><span>5 g</span><span>22,5 g</span><span>40 g+</span></div>`;
+  if(sa.grams_per_serving!=null)h+=`<p class="sub" style="margin:8px 0 0">Pro Portion${sa.serving?' ('+esc(sa.serving)+')':''}: ${esc(String(sa.grams_per_serving).replace('.',','))} g, etwa ${esc(String(sa.teaspoons_per_serving).replace('.',','))} Teelöffel</p>`;
+  if(sa.level!=='low'&&['none_detected','uncertain','sweeteners'].includes(as.verdict))h+='<p class="hint">Es wurde kein Zucker zugesetzt, trotzdem enthält das Produkt viel Zucker, etwa aus Früchten, Milch oder süßenden Zutaten.</p>';
+  h+='<p class="hint">Gesamtzucker enthält auch natürlich vorhandenen Zucker. Ampel nach den Schwellen der britischen Lebensmittelbehörde (FSA) pro 100 g. 1 Teelöffel entspricht etwa 4 g.</p>';
+  return h;
+}
 function render(d,ean){
   const p=d.product||{},a=d.analysis||{},as=d.assessment||{verdict:'unknown',quality:'none',quality_reason:''};
   const v=VERDICTS[as.verdict]||VERDICTS.unknown;
@@ -125,14 +145,15 @@ function render(d,ean){
   let h='';
   h+=`<div class="card"><div class="verdict ${v.cls}"><div class="dot">${v.sym}</div><div><h2>${esc(v.title)}</h2><p>${esc(v.text)}</p></div></div>`;
   h+=`<div class="product" style="margin-top:14px">${img?`<img src="${esc(img)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:''}<div><h3>${esc(p.name||'Produkt '+ean)}</h3><div class="brand-name">${esc(p.brand||'')}${p.brand?' · ':''}EAN ${esc(ean)}</div></div></div>`;
+  h+=sugarBlock(d.sugar_amount,as);
   if(as.ingredients_available){
     h+='<h4>Gefunden</h4><div>';
-    (a.added_sugar_matches||[]).forEach(x=>h+=pill(x,'bad'));
-    (a.sweetener_matches||[]).forEach(x=>h+=pill(x,'warn'));
-    (a.sweetening_ingredient_matches||[]).forEach(x=>h+=pill(x,'warn'));
+    (a.added_sugar_matches||[]).forEach(x=>h+=termPill(x,'bad'));
+    (a.sweetener_matches||[]).forEach(x=>h+=termPill(x,'warn'));
+    (a.sweetening_ingredient_matches||[]).forEach(x=>h+=termPill(x,'warn'));
     (a.additives||[]).forEach(x=>h+=pill(`${x.code} ${x.name} (${x.function})`,'info'));
     if(!(a.added_sugar_matches||[]).length&&!(a.sweetener_matches||[]).length&&!(a.sweetening_ingredient_matches||[]).length&&!(a.additives||[]).length)h+=pill('Nichts Auffälliges in der Zutatenliste');
-    h+='</div>';
+    h+='</div><div class="explain" id="explain" hidden></div><p class="hint" style="margin-top:6px">Tippe auf einen Begriff für eine Erklärung.</p>';
     h+=`<h4>Zutaten</h4><p class="ingredients">${highlight(p.ingredients,words)}</p>`;
     if(p.allergens)h+=`<h4>Allergene</h4><p class="ingredients">${esc(p.allergens)}</p>`;
   }else{
@@ -288,6 +309,7 @@ $('#photo').addEventListener('change',async ev=>{
   ev.target.value='';
 });
 
+out.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('button[data-term]');if(!b)return;const box=out.querySelector('#explain');if(!box)return;const t=b.getAttribute('data-term'),x=explain(t);if(!box.hidden&&box.getAttribute('data-for')===t){box.hidden=true;return}box.setAttribute('data-for',t);box.innerHTML='<b>'+esc(x.title)+'</b>'+esc(x.text);box.hidden=false});
 scanBtn.addEventListener('click',startScan);
 $('#stop').addEventListener('click',stopScan);
 goBtn.addEventListener('click',()=>lookup(eanIn.value));

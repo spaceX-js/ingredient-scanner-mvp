@@ -6,6 +6,7 @@ import { analyseIngredients } from "./engine/ingredient-engine.js";
 import { createMergeResult, addCandidate, publicFields, confidenceRank } from "./field-merger.js";
 import { getIndexedProduct, hintsFromIndex, indexCandidates, isFresh, persistResolvedProduct } from "./product-index.js";
 import { assess } from "./assessment.js";
+import { extractSugar } from "./sugar.js";
 import { APP_VERSION } from "./version.js";
 
 const DEFAULT_TTL_HOURS = 168; // 7 Tage
@@ -46,6 +47,7 @@ export async function resolveProduct(ean, hints = {}, env = {}, ctx = null) {
   const out = {
     version: APP_VERSION, ean, product: p, fields: publicFields(r.fields), sources: r.sources, resolver_trace: r.resolver_trace, status, analysis,
     assessment: assess(analysis, r.fields.ingredients, Boolean(p.ingredients)),
+    sugar_amount: extractSugar(p.nutrition),
     index: { enabled: Boolean(env.DB), mapping_found: Boolean(index && !index.error), cache: fresh ? "hit" : "miss" }
   };
 

@@ -59,3 +59,8 @@ Offline (fetch-Stubs, In-Memory-D1-Attrappe). Live-Abrufe gegen Händler sind ni
 
 ### OCR-Dateien (ab v0.6.1 automatisch)
 Beim Deploy führt `wrangler` vorher `scripts/vendor-ocr.mjs` aus (`build.command` in `wrangler.jsonc`). Das Skript kopiert Tesseract.js (Version aus `package.json`) und die deutschen Sprachdaten nach `public/ocr/`. Die Seite erkennt `/ocr/tesseract.min.js` und nutzt dann nur eigene Dateien. Schlägt der Schritt fehl, wird nur gewarnt und die Seite nutzt das CDN. `public/ocr/` steht in `.gitignore`.
+
+## v0.7.0 – Zuckermenge und Zuckerlexikon
+
+- API: neues Feld `sugar_amount` (`grams_per_100g`, `teaspoons_per_100g`, `level` low/medium/high nach FSA-Schwellen 5 g und 22,5 g pro 100 g, optional `grams_per_serving`). Quelle sind die Nährwerte aus dm, Open Food Facts oder manuell gepflegte Daten; ohne Nährwerte `null`, nie 0.
+- Oberfläche: Karte "Zucker gesamt" mit Teelöffeln und Ampelleiste, Hinweis wenn viel Zucker enthalten ist, obwohl keiner zugesetzt wurde. Tippen auf einen gefundenen Begriff zeigt eine Erklärung (`public/sugar-lexicon.js`).
