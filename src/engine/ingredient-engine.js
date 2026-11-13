@@ -44,6 +44,11 @@ function hits(text,rules){const out=[]; for(const [re,label] of rules){if(re.tes
 export function analyseIngredients(raw=""){
   const text=clean(raw), scan=ingredientText(text);
   const added=hits(scan,ADDED_SUGAR), sweeteners=hits(scan,SWEETENERS), sweetening=hits(scan,SWEETENING);
+  // Zusammensetzungen auf -zucker (Kokosblütenzucker, Vollrohrzucker, Puderzucker ...) ohne Einzelliste erkennen.
+  for(const m of scan.matchAll(/[\p{L}-]*zucker(?![\p{L}])/giu)){
+    const w=m[0].replace(/^-+/,"");
+    if(w.length>6&&!added.some(x=>x.toLowerCase()===w.toLowerCase()))added.push(w.charAt(0).toUpperCase()+w.slice(1));
+  }
   const additives=[]; for(const [re,code,name,fn] of ADDITIVES){if(re.test(scan)&&!additives.some(x=>x.code===code)) additives.push({code,name,function:fn})}
   return {added_sugar:added.length>0,added_sugar_matches:added,sweeteners_present:sweeteners.length>0,sweetener_matches:sweeteners,sweetening_ingredients_present:sweetening.length>0,sweetening_ingredient_matches:sweetening,additives,confidence:text?"high":"none"};
 }

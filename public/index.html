@@ -1,6 +1,199 @@
-<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KlarZutaten MVP</title><style>
-:root{font-family:Inter,system-ui,sans-serif;color:#1f2937;background:#f7f7f4}body{margin:0}.wrap{max-width:820px;margin:auto;padding:28px 18px}.brand{font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.card{background:white;border:1px solid #e5e7eb;border-radius:18px;padding:20px;margin-top:18px;box-shadow:0 8px 30px #0000000a}h1{font-size:38px;margin:8px 0}p{line-height:1.5}.row{display:flex;gap:10px}input{flex:1;padding:14px;border:1px solid #cbd5e1;border-radius:12px;font-size:17px}button{padding:14px 18px;border:0;border-radius:12px;background:#111827;color:#fff;font-weight:700;cursor:pointer}.pill{display:inline-block;padding:6px 10px;border-radius:999px;background:#f3f4f6;margin:3px;font-size:13px}.good{background:#dcfce7}.warn{background:#fef3c7}.bad{background:#fee2e2}pre{white-space:pre-wrap;word-break:break-word;background:#f8fafc;padding:14px;border-radius:12px;font-size:12px}.muted{color:#6b7280;font-size:14px}@media(max-width:600px){h1{font-size:30px}.row{flex-direction:column}}
-</style></head><body><main class="wrap"><div class="brand">KlarZutaten · MVP <span id="appVersion">0.4.3</span></div><h1>Was steckt wirklich drin?</h1><p>EAN eingeben. KlarZutaten löst das Produkt über mehrere Quellen auf und erklärt Zucker, Süßungsmittel und Zusatzstoffe.</p><section class="card"><div class="row"><input id="ean" inputmode="numeric" placeholder="z. B. 4031244004895" value="4031244004895"><button id="go">Analysieren</button></div><p class="muted">Backend: Cloudflare Worker · Multi-Source Field Merger · OFF + Rossmann + dm.</p></section><section id="out" class="card" hidden></section></main><script>
-const e=document.querySelector('#ean'),b=document.querySelector('#go'),o=document.querySelector('#out');fetch('/api/version').then(r=>r.json()).then(v=>{document.querySelector('#appVersion').textContent=v.version}).catch(()=>{});
-function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}function pill(t,c=''){return `<span class="pill ${c}">${esc(t)}</span>`}async function run(){const v=e.value.trim();o.hidden=false;o.innerHTML='<p>Produkt wird aufgelöst …</p>';try{const r=await fetch('/api/product/'+encodeURIComponent(v));const d=await r.json();const a=d.analysis||{},p=d.product||{};o.innerHTML=`<h2>${esc(p.name||'Produkt '+v)}</h2><p>${esc(p.brand||'')}</p><div>${a.added_sugar?pill('Zugesetzter Zucker','bad'):pill('Kein zugesetzter Zucker erkannt','good')} ${a.sweeteners_present?pill('Süßungsmittel','warn'):pill('Keine Süßungsmittel erkannt','good')} ${a.sweetening_ingredients_present?pill('Süßende Zutaten','warn'):''}</div><h3>Zutaten</h3><p>${esc(p.ingredients||'Keine Zutatenliste gefunden.')}</p><h3>Quellen</h3><p>${(d.sources||[]).map(x=>pill(x.source)).join(' ')||'Keine'}</p><details><summary>Technische Antwort</summary><pre>${esc(JSON.stringify(d,null,2))}</pre></details>`}catch(err){o.innerHTML='<p>Fehler: '+esc(err.message)+'</p>'}}b.onclick=run;e.addEventListener('keydown',x=>{if(x.key==='Enter')run()});
-</script></body></html>
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<title>KlarZutaten</title>
+<style>
+:root{--ink:#111827;--muted:#6b7280;--line:#e5e7eb;--bg:#f6f6f2;--green:#15803d;--green-bg:#dcfce7;--amber:#b45309;--amber-bg:#fef3c7;--red:#b91c1c;--red-bg:#fee2e2;--grey:#475569;--grey-bg:#e2e8f0;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);background:var(--bg)}
+*{box-sizing:border-box}body{margin:0;padding-bottom:env(safe-area-inset-bottom)}
+.wrap{max-width:640px;margin:auto;padding:20px 16px 40px}
+.brand{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+.brand small{font-weight:600;letter-spacing:0;text-transform:none;color:var(--muted)}
+h1{font-size:30px;line-height:1.15;margin:10px 0 6px}
+.lead{color:var(--muted);margin:0 0 14px;line-height:1.45}
+.card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:16px;margin-top:14px;box-shadow:0 8px 30px #0000000a}
+button{font:inherit;font-weight:700;border:0;border-radius:12px;padding:14px 18px;cursor:pointer;background:var(--ink);color:#fff}
+button.secondary{background:#f1f5f9;color:var(--ink)}
+button:disabled{opacity:.5}
+.scan-btn{width:100%;font-size:17px;padding:16px}
+.row{display:flex;gap:10px;margin-top:12px}
+input{flex:1;min-width:0;font:inherit;font-size:18px;padding:13px;border:1px solid #cbd5e1;border-radius:12px;letter-spacing:.04em}
+label.small{display:block;margin-top:14px;font-size:13px;color:var(--muted)}
+#camera{display:none;margin-top:12px}
+#camera.on{display:block}
+.viewport{position:relative;border-radius:14px;overflow:hidden;background:#000;aspect-ratio:4/3}
+video{width:100%;height:100%;object-fit:cover;display:block}
+.frame{position:absolute;inset:22% 8%;border:3px solid #ffffffcc;border-radius:12px;box-shadow:0 0 0 999px #00000044;pointer-events:none}
+.hint{font-size:13px;color:var(--muted);margin:8px 0 0}
+.err{color:var(--red);font-size:14px;margin:8px 0 0}
+.verdict{border-radius:16px;padding:16px;display:flex;gap:14px;align-items:center}
+.verdict .dot{flex:none;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-size:22px;font-weight:800;color:#fff}
+.verdict h2{margin:0;font-size:20px;line-height:1.2}
+.verdict p{margin:4px 0 0;font-size:14px;line-height:1.4}
+.v-good{background:var(--green-bg)}.v-good .dot{background:var(--green)}
+.v-warn{background:var(--amber-bg)}.v-warn .dot{background:var(--amber)}
+.v-bad{background:var(--red-bg)}.v-bad .dot{background:var(--red)}
+.v-grey{background:var(--grey-bg)}.v-grey .dot{background:var(--grey)}
+.product{display:flex;gap:14px;align-items:center;margin-bottom:12px}
+.product img{width:84px;height:84px;object-fit:contain;border-radius:12px;background:#f8fafc;border:1px solid var(--line)}
+.product h3{margin:0;font-size:18px;line-height:1.25}
+.product .brand-name{color:var(--muted);font-size:14px;margin-top:2px}
+h4{margin:18px 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.pill{display:inline-block;padding:6px 10px;border-radius:999px;font-size:13px;margin:2px 4px 2px 0;background:#f1f5f9}
+.pill.bad{background:var(--red-bg);color:var(--red)}.pill.warn{background:var(--amber-bg);color:var(--amber)}.pill.info{background:#e0e7ff;color:#3730a3}
+.ingredients{line-height:1.6;font-size:15px;margin:0}
+mark{background:#fde68a;border-radius:4px;padding:0 2px}
+.quality{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.4}
+.bars{flex:none;display:flex;gap:3px;margin-top:4px}.bars i{width:18px;height:8px;border-radius:3px;background:#e2e8f0}
+.q-high .bars i{background:var(--green)}.q-medium .bars i:nth-child(-n+2){background:#d97706}.q-low .bars i:nth-child(1){background:var(--red)}
+details{margin-top:14px}summary{cursor:pointer;color:var(--muted);font-size:14px}
+pre{white-space:pre-wrap;word-break:break-word;background:#f8fafc;padding:12px;border-radius:12px;font-size:11px}
+.foot{margin-top:18px;font-size:12px;color:var(--muted);line-height:1.5}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="brand">KlarZutaten <small>v<span id="appVersion">0.5.0</span></small></div>
+  <h1>Was steckt wirklich drin?</h1>
+  <p class="lead">Barcode scannen und sehen, ob Zucker, Süßungsmittel oder Zusatzstoffe enthalten sind.</p>
+
+  <section class="card">
+    <button id="scan" class="scan-btn" type="button">📷 Barcode scannen</button>
+    <div id="camera">
+      <div class="viewport"><video id="video" playsinline muted></video><div class="frame"></div></div>
+      <p class="hint" id="camHint">Halte den Barcode in den Rahmen.</p>
+      <div class="row"><button id="stop" class="secondary" type="button">Scanner schließen</button></div>
+    </div>
+    <p class="err" id="camErr" hidden></p>
+    <label class="small" for="ean">Oder Nummer eingeben (EAN)</label>
+    <div class="row" style="margin-top:6px">
+      <input id="ean" inputmode="numeric" autocomplete="off" placeholder="z. B. 4031244004895" maxlength="14">
+      <button id="go" type="button">Prüfen</button>
+    </div>
+  </section>
+
+  <section id="out" hidden></section>
+  <p class="foot">Zutatenangaben stammen aus Händler- und Gemeinschaftsdaten (u. a. Open Food Facts, ODbL). Maßgeblich ist immer die Angabe auf der Verpackung.</p>
+</main>
+
+<script>
+(function(){
+const $=s=>document.querySelector(s);
+const eanIn=$('#ean'),goBtn=$('#go'),out=$('#out'),scanBtn=$('#scan'),cam=$('#camera'),video=$('#video'),camErr=$('#camErr'),camHint=$('#camHint');
+fetch('/api/version').then(r=>r.json()).then(v=>{$('#appVersion').textContent=v.version}).catch(()=>{});
+
+const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pill=(t,c='')=>`<span class="pill ${c}">${esc(t)}</span>`;
+const safeImg=u=>{try{const x=new URL(u);return x.protocol==='https:'?x.href:null}catch{return null}};
+const reEsc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+
+const VERDICTS={
+  added_sugar:{cls:'v-bad',sym:'!',title:'Zugesetzter Zucker enthalten',text:'In der Zutatenliste steht mindestens eine Zuckerart.'},
+  sweeteners:{cls:'v-warn',sym:'!',title:'Süßungsmittel enthalten',text:'Kein Zucker erkannt, aber Süßstoffe oder Zuckeraustauschstoffe.'},
+  sweetening_ingredients:{cls:'v-warn',sym:'~',title:'Süßende Zutaten enthalten',text:'Kein Haushaltszucker erkannt, aber Sirup, Dicksaft oder Ähnliches.'},
+  none_detected:{cls:'v-good',sym:'✓',title:'Kein zugesetzter Zucker erkannt',text:'In der Zutatenliste wurde keine Zuckerart und kein Süßungsmittel gefunden.'},
+  uncertain:{cls:'v-grey',sym:'?',title:'Nicht sicher beurteilbar',text:'Die Zutaten stammen aus einer unsicheren Quelle und sind eventuell unvollständig.'},
+  unknown:{cls:'v-grey',sym:'?',title:'Zutaten noch nicht vollständig verfügbar',text:'Für dieses Produkt liegt keine Zutatenliste vor. Es lässt sich nichts über Zucker sagen.'}
+};
+const QUALITY={high:'Hoch',medium:'Mittel',low:'Niedrig',none:'Keine Daten'};
+
+function highlight(text,words){
+  let h=esc(text);
+  const list=[...new Set(words.filter(w=>w&&w.length>2))].sort((a,b)=>b.length-a.length);
+  if(!list.length)return h;
+  const re=new RegExp('('+list.map(w=>reEsc(esc(w))).join('|')+')','gi');
+  return h.replace(re,'<mark>$1</mark>');
+}
+
+function render(d,ean){
+  const p=d.product||{},a=d.analysis||{},as=d.assessment||{verdict:'unknown',quality:'none',quality_reason:''};
+  const v=VERDICTS[as.verdict]||VERDICTS.unknown;
+  const img=safeImg(p.image);
+  const words=[...(a.added_sugar_matches||[]),...(a.sweetener_matches||[]),...(a.sweetening_ingredient_matches||[])];
+  let h='';
+  h+=`<div class="card"><div class="verdict ${v.cls}"><div class="dot">${v.sym}</div><div><h2>${esc(v.title)}</h2><p>${esc(v.text)}</p></div></div>`;
+  h+=`<div class="product" style="margin-top:14px">${img?`<img src="${esc(img)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:''}<div><h3>${esc(p.name||'Produkt '+ean)}</h3><div class="brand-name">${esc(p.brand||'')}${p.brand?' · ':''}EAN ${esc(ean)}</div></div></div>`;
+  if(as.ingredients_available){
+    h+='<h4>Gefunden</h4><div>';
+    (a.added_sugar_matches||[]).forEach(x=>h+=pill(x,'bad'));
+    (a.sweetener_matches||[]).forEach(x=>h+=pill(x,'warn'));
+    (a.sweetening_ingredient_matches||[]).forEach(x=>h+=pill(x,'warn'));
+    (a.additives||[]).forEach(x=>h+=pill(`${x.code} ${x.name} (${x.function})`,'info'));
+    if(!(a.added_sugar_matches||[]).length&&!(a.sweetener_matches||[]).length&&!(a.sweetening_ingredient_matches||[]).length&&!(a.additives||[]).length)h+=pill('Nichts Auffälliges in der Zutatenliste');
+    h+='</div>';
+    h+=`<h4>Zutaten</h4><p class="ingredients">${highlight(p.ingredients,words)}</p>`;
+    if(p.allergens)h+=`<h4>Allergene</h4><p class="ingredients">${esc(p.allergens)}</p>`;
+  }else{
+    h+='<h4>Zutaten</h4><p class="ingredients">Keine Zutatenliste gefunden.</p>';
+  }
+  h+=`<h4>Datenqualität</h4><div class="quality q-${esc(as.quality)}"><span class="bars"><i></i><i></i><i></i></span><div><b>${esc(QUALITY[as.quality]||'')}</b><br><span style="color:var(--muted)">${esc(as.quality_reason||'')}</span></div></div>`;
+  const src=(d.sources||[]).filter(x=>x.source!=='KlarZutaten Index'||(d.sources||[]).length===1).map(x=>x.source);
+  if(src.length)h+=`<h4>Quellen</h4><div>${[...new Set(src)].map(s=>pill(s)).join('')}</div>`;
+  h+=`<details><summary>Technische Antwort</summary><pre>${esc(JSON.stringify(d,null,2))}</pre></details></div>`;
+  out.innerHTML=h;out.hidden=false;out.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+async function lookup(raw){
+  const ean=String(raw||'').replace(/\D/g,'');
+  if(!/^(\d{8}|\d{12,14})$/.test(ean)){out.hidden=false;out.innerHTML='<div class="card"><p class="err">Bitte eine gültige EAN mit 8, 12, 13 oder 14 Ziffern eingeben.</p></div>';return}
+  eanIn.value=ean;goBtn.disabled=true;out.hidden=false;out.innerHTML='<div class="card"><p>Produkt wird gesucht …</p></div>';
+  try{
+    const r=await fetch('/api/product/'+encodeURIComponent(ean));
+    const d=await r.json();
+    if(r.status===400){out.innerHTML=`<div class="card"><p class="err">${esc(d.error||'Ungültige EAN')}</p></div>`}
+    else if(r.status===404||d.status==='NOT_FOUND'){out.innerHTML=`<div class="card"><div class="verdict v-grey"><div class="dot">?</div><div><h2>Produkt nicht gefunden</h2><p>Zu EAN ${esc(ean)} liegen keine Daten vor.</p></div></div></div>`}
+    else render(d,ean);
+  }catch(err){out.innerHTML=`<div class="card"><p class="err">Fehler: ${esc(err.message)}</p></div>`}
+  finally{goBtn.disabled=false}
+}
+
+/* ---- Kamera-Scanner ---- */
+let stream=null,running=false,detector=null,zxingReader=null;
+function stopScan(){running=false;if(zxingReader){try{zxingReader.reset()}catch{}zxingReader=null}if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}video.srcObject=null;cam.classList.remove('on');scanBtn.disabled=false}
+function onCode(code){if(!running)return;stopScan();if('vibrate' in navigator)try{navigator.vibrate(60)}catch{};lookup(code)}
+function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('Scanner-Bibliothek konnte nicht geladen werden'));document.head.appendChild(s)})}
+
+async function startScan(){
+  camErr.hidden=true;
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){camErr.textContent='Dieser Browser erlaubt keinen Kamerazugriff. Bitte die Nummer eingeben.';camErr.hidden=false;return}
+  scanBtn.disabled=true;
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});
+  }catch(e){
+    scanBtn.disabled=false;
+    camErr.textContent=e&&e.name==='NotAllowedError'?'Kamerazugriff wurde nicht erlaubt. Erlaube ihn in den Browser-Einstellungen oder gib die Nummer ein.':'Kamera nicht verfügbar: '+(e&&e.message||e);camErr.hidden=false;return;
+  }
+  video.srcObject=stream;await video.play().catch(()=>{});cam.classList.add('on');running=true;camHint.textContent='Halte den Barcode in den Rahmen.';
+  if('BarcodeDetector' in window){
+    try{detector=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e']})}catch{detector=null}
+  }
+  if(detector){
+    const tick=async()=>{
+      if(!running)return;
+      try{const codes=await detector.detect(video);if(codes.length){onCode(codes[0].rawValue);return}}catch{}
+      setTimeout(tick,120);
+    };tick();return;
+  }
+  // Fallback (z. B. iPhone/Safari): ZXing aus dem CDN laden
+  try{
+    camHint.textContent='Scanner wird geladen …';
+    if(!window.ZXing)await loadScript('https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js');
+    const Z=window.ZXing;const hints=new Map();
+    hints.set(Z.DecodeHintType.POSSIBLE_FORMATS,[Z.BarcodeFormat.EAN_13,Z.BarcodeFormat.EAN_8,Z.BarcodeFormat.UPC_A,Z.BarcodeFormat.UPC_E]);
+    zxingReader=new Z.BrowserMultiFormatReader(hints,150);
+    camHint.textContent='Halte den Barcode in den Rahmen.';
+    zxingReader.decodeFromVideoElement(video,(result)=>{if(result)onCode(result.getText())});
+  }catch(e){camErr.textContent=(e&&e.message||e)+'. Bitte die Nummer eingeben.';camErr.hidden=false;stopScan()}
+}
+
+scanBtn.addEventListener('click',startScan);
+$('#stop').addEventListener('click',stopScan);
+goBtn.addEventListener('click',()=>lookup(eanIn.value));
+eanIn.addEventListener('keydown',e=>{if(e.key==='Enter')lookup(eanIn.value)});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&running)stopScan()});
+})();
+</script>
+</body>
+</html>

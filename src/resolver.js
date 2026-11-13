@@ -5,6 +5,7 @@ import { getDmByEan, getDmByDan } from "./adapters/dm.js";
 import { analyseIngredients } from "./engine/ingredient-engine.js";
 import { createMergeResult, addCandidate, publicFields, confidenceRank } from "./field-merger.js";
 import { getIndexedProduct, hintsFromIndex, indexCandidates, isFresh, persistResolvedProduct } from "./product-index.js";
+import { assess } from "./assessment.js";
 import { APP_VERSION } from "./version.js";
 
 const DEFAULT_TTL_HOURS = 168; // 7 Tage
@@ -44,6 +45,7 @@ export async function resolveProduct(ean, hints = {}, env = {}, ctx = null) {
   if (p.withoutAddedSugar === true && !analysis.added_sugar && analysis.confidence !== "none") analysis.validation = { without_added_sugar_claim: true, consistent: true };
   const out = {
     version: APP_VERSION, ean, product: p, fields: publicFields(r.fields), sources: r.sources, resolver_trace: r.resolver_trace, status, analysis,
+    assessment: assess(analysis, r.fields.ingredients, Boolean(p.ingredients)),
     index: { enabled: Boolean(env.DB), mapping_found: Boolean(index && !index.error), cache: fresh ? "hit" : "miss" }
   };
 
