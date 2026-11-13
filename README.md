@@ -57,11 +57,5 @@ Offline (fetch-Stubs, In-Memory-D1-Attrappe). Live-Abrufe gegen Händler sind ni
 - `POST /api/product/{EAN}/ingredients` mit `{ "text": "...", "name": "optional" }`: speichert in D1 mit Quelle `Nutzer-Foto`, Confidence `low` (Anzeige: "uncertain", wenn nichts Auffälliges gefunden wird). Geprüfte Händler-/Handdaten werden nie überschrieben (409). Nur gleiche Herkunft (Origin), Text ≤ 3000 Zeichen, keine Markup-Zeichen/Links.
 - Keine Serverkosten für die Texterkennung: sie läuft auf dem Gerät des Nutzers.
 
-### OCR-Dateien selbst hosten (empfohlen)
-Standardmäßig lädt die Seite Tesseract.js vom CDN (jsDelivr) und die Sprachdaten vom Tesseract-Server. Zum Selbst-Hosten die Dateien nach `public/ocr/` legen:
-
-1. `npm i --no-save tesseract.js@5 tesseract.js-core@5`
-2. Kopieren nach `public/ocr/`: `node_modules/tesseract.js/dist/tesseract.min.js`, `node_modules/tesseract.js/dist/worker.min.js`, alle `node_modules/tesseract.js-core/tesseract-core*.js` und `*.wasm`.
-3. `deu.traineddata.gz` (z. B. aus dem Repository `tessdata_fast`) ebenfalls nach `public/ocr/`.
-
-Die Seite erkennt `/ocr/tesseract.min.js` automatisch und nutzt dann nur noch eigene Dateien.
+### OCR-Dateien (ab v0.6.1 automatisch)
+Beim Deploy führt `wrangler` vorher `scripts/vendor-ocr.mjs` aus (`build.command` in `wrangler.jsonc`). Das Skript kopiert Tesseract.js (Version aus `package.json`) und die deutschen Sprachdaten nach `public/ocr/`. Die Seite erkennt `/ocr/tesseract.min.js` und nutzt dann nur eigene Dateien. Schlägt der Schritt fehl, wird nur gewarnt und die Seite nutzt das CDN. `public/ocr/` steht in `.gitignore`.

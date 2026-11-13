@@ -5,3 +5,6 @@ node_modules/
 coverage/
 .DS_Store
 .dev.vars*
+
+public/ocr/
+public/ocr.tmp/
