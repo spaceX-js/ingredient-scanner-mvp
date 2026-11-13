@@ -50,7 +50,8 @@ mark{background:#fde68a;border-radius:4px;padding:0 2px}
 .q-high .bars i{background:var(--green)}.q-medium .bars i:nth-child(-n+2){background:#d97706}.q-low .bars i:nth-child(1){background:var(--red)}
 details{margin-top:14px}summary{cursor:pointer;color:var(--muted);font-size:14px}
 pre{white-space:pre-wrap;word-break:break-word;background:#f8fafc;padding:12px;border-radius:12px;font-size:11px}
-.capture textarea{width:100%;min-height:130px;font:inherit;font-size:15px;line-height:1.5;padding:12px;border:1px solid #cbd5e1;border-radius:12px;resize:vertical}
+.filebtn{display:block;text-align:center;padding:14px;border-radius:12px;background:#f1f5f9;font-weight:700;cursor:pointer;margin-top:10px}.filebtn input{display:none}
+.capture textarea{width:100%;min-height:130px;font:inherit;font-size:16px;line-height:1.5;padding:12px;border:1px solid #cbd5e1;border-radius:12px;resize:vertical}
 .capture input[type=text]{width:100%;font-size:16px;letter-spacing:0;margin-top:8px}
 .capture .row button{flex:1}
 .progress{height:6px;border-radius:3px;background:#e2e8f0;overflow:hidden;margin-top:8px}.progress i{display:block;height:100%;width:0;background:var(--ink);transition:width .2s}
@@ -67,7 +68,7 @@ button.pill{border:0;cursor:pointer;font:inherit;font-size:13px;color:inherit}bu
 </head>
 <body>
 <main class="wrap">
-  <div class="brand">KlarZutaten <small>v<span id="appVersion">0.7.0</span></small></div>
+  <div class="brand">KlarZutaten <small>v<span id="appVersion">0.7.1</span></small></div>
   <h1>Was steckt wirklich drin?</h1>
   <p class="lead">Barcode scannen und sehen, ob Zucker, Süßungsmittel oder Zusatzstoffe enthalten sind.</p>
 
@@ -169,11 +170,13 @@ function render(d,ean){
 /* ---- Zutaten erfassen (Foto + OCR im Browser, oder Text einfügen) ---- */
 function captureBlock(ean,hasName){
   return `<div class="card capture" data-ean="${esc(ean)}"><h4 style="margin-top:0">Zutaten erfassen</h4>
-  <p class="hint" style="margin-top:0">Fotografiere die Zutatenliste. Der Text wird auf deinem Gerät erkannt. Prüfe ihn danach, bevor du speicherst. Du kannst den Text auch direkt einfügen (iPhone: Text im Kamerabild markieren und kopieren).</p>
-  <input type="file" accept="image/*" capture="environment" class="ocrFile" style="font-size:14px">
+  <p class="hint" style="margin-top:0"><b>Am genauesten:</b> Tippe in das Feld und halte gedrückt. Wähle „Text scannen“ (iPhone) oder „Text scannen“ bzw. „Lens“ im Tastaturmenü (Android) und richte die Kamera auf die Zutatenliste. Der Text erscheint direkt im Feld.</p>
+  <textarea class="ocrText" placeholder="Zutatenliste hier einfügen oder scannen"></textarea>
+  <label class="filebtn">📷 Alternativ: Foto aufnehmen und in der App erkennen<input type="file" accept="image/*" capture="environment" class="ocrFile"></label>
+  <p class="hint">Die Erkennung per Foto ist ungenauer, besonders bei gewölbten Verpackungen, Folie und kleiner Schrift. Fotografiere nur die Zutatenliste, möglichst nah und gerade.</p>
   <div class="progress" hidden><i></i></div><p class="hint ocrStatus" hidden></p>
-  <textarea class="ocrText" placeholder="Zutatenliste hier einfügen oder nach dem Foto korrigieren"></textarea>
   ${hasName?'':'<input type="text" class="ocrName" maxlength="120" placeholder="Produktname (optional)">'}
+  <p class="hint">Vergleiche den Text vor dem Speichern mit der Packung und korrigiere Fehler.</p>
   <div class="row"><button type="button" class="ocrSave">Speichern</button></div><p class="err ocrErr" hidden></p></div>`;
 }
 
@@ -217,7 +220,7 @@ function bindCapture(root,ean){
     try{
       const raw=await runOcr(f,ui);const r=extractIngredientText(raw);
       ta.value=r.ingredients||raw.trim();
-      st.textContent=r.found?'Fertig. Bitte den Text mit dem Etikett vergleichen und Fehler korrigieren.':'Fertig, aber das Wort „Zutaten“ wurde nicht gefunden. Bitte prüfen und auf die Zutatenliste kürzen.';barI.style.width='100%';
+      st.textContent=r.found?'Fertig. Bitte den Text mit dem Etikett vergleichen und Fehler korrigieren.':'Fertig, aber das Wort „Zutaten“ wurde nicht gefunden. Bitte prüfen und auf die Zutatenliste kürzen.';bar.hidden=true;
       if(!ta.value){err.textContent='Es wurde kein Text erkannt. Bitte näher, schärfer und bei gutem Licht fotografieren oder den Text einfügen.';err.hidden=false}
     }catch(e){bar.hidden=true;st.hidden=true;err.textContent=(e&&e.message)||'Texterkennung fehlgeschlagen.';err.hidden=false}
     file.value='';
