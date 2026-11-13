@@ -50,12 +50,17 @@ mark{background:#fde68a;border-radius:4px;padding:0 2px}
 .q-high .bars i{background:var(--green)}.q-medium .bars i:nth-child(-n+2){background:#d97706}.q-low .bars i:nth-child(1){background:var(--red)}
 details{margin-top:14px}summary{cursor:pointer;color:var(--muted);font-size:14px}
 pre{white-space:pre-wrap;word-break:break-word;background:#f8fafc;padding:12px;border-radius:12px;font-size:11px}
+.capture textarea{width:100%;min-height:130px;font:inherit;font-size:15px;line-height:1.5;padding:12px;border:1px solid #cbd5e1;border-radius:12px;resize:vertical}
+.capture input[type=text]{width:100%;font-size:16px;letter-spacing:0;margin-top:8px}
+.capture .row button{flex:1}
+.progress{height:6px;border-radius:3px;background:#e2e8f0;overflow:hidden;margin-top:8px}.progress i{display:block;height:100%;width:0;background:var(--ink);transition:width .2s}
+.ok{color:var(--green);font-size:14px;margin:8px 0 0}
 .foot{margin-top:18px;font-size:12px;color:var(--muted);line-height:1.5}
 </style>
 </head>
 <body>
 <main class="wrap">
-  <div class="brand">KlarZutaten <small>v<span id="appVersion">0.5.0</span></small></div>
+  <div class="brand">KlarZutaten <small>v<span id="appVersion">0.6.0</span></small></div>
   <h1>Was steckt wirklich drin?</h1>
   <p class="lead">Barcode scannen und sehen, ob Zucker, Süßungsmittel oder Zusatzstoffe enthalten sind.</p>
 
@@ -83,6 +88,7 @@ pre{white-space:pre-wrap;word-break:break-word;background:#f8fafc;padding:12px;b
 
 <script type="module">
 import { decodeEan, toGray } from "./ean-decoder.js";
+import { extractIngredientText } from "./ingredient-text.js";
 (function(){
 const $=s=>document.querySelector(s);
 const eanIn=$('#ean'),goBtn=$('#go'),out=$('#out'),scanBtn=$('#scan'),cam=$('#camera'),video=$('#video'),camErr=$('#camErr'),camHint=$('#camHint');
@@ -136,18 +142,87 @@ function render(d,ean){
   const src=(d.sources||[]).filter(x=>x.source!=='KlarZutaten Index'||(d.sources||[]).length===1).map(x=>x.source);
   if(src.length)h+=`<h4>Quellen</h4><div>${[...new Set(src)].map(s=>pill(s)).join('')}</div>`;
   h+=`<details><summary>Technische Antwort</summary><pre>${esc(JSON.stringify(d,null,2))}</pre></details></div>`;
-  out.innerHTML=h;out.hidden=false;out.scrollIntoView({behavior:'smooth',block:'start'});
+  out.innerHTML=h+((!as.ingredients_available||as.quality==='low')?captureBlock(ean,Boolean(p.name)):'');bindCapture(out,ean);out.hidden=false;out.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
-async function lookup(raw){
+/* ---- Zutaten erfassen (Foto + OCR im Browser, oder Text einfügen) ---- */
+function captureBlock(ean,hasName){
+  return `<div class="card capture" data-ean="${esc(ean)}"><h4 style="margin-top:0">Zutaten erfassen</h4>
+  <p class="hint" style="margin-top:0">Fotografiere die Zutatenliste. Der Text wird auf deinem Gerät erkannt. Prüfe ihn danach, bevor du speicherst. Du kannst den Text auch direkt einfügen (iPhone: Text im Kamerabild markieren und kopieren).</p>
+  <input type="file" accept="image/*" capture="environment" class="ocrFile" style="font-size:14px">
+  <div class="progress" hidden><i></i></div><p class="hint ocrStatus" hidden></p>
+  <textarea class="ocrText" placeholder="Zutatenliste hier einfügen oder nach dem Foto korrigieren"></textarea>
+  ${hasName?'':'<input type="text" class="ocrName" maxlength="120" placeholder="Produktname (optional)">'}
+  <div class="row"><button type="button" class="ocrSave">Speichern</button></div><p class="err ocrErr" hidden></p></div>`;
+}
+
+let tessPromise=null;
+function loadTesseract(){
+  if(window.Tesseract)return Promise.resolve({local:false});
+  if(tessPromise)return tessPromise;
+  const load=src=>new Promise((res,rej)=>{const sc=document.createElement('script');sc.src=src;sc.onload=res;sc.onerror=()=>rej(new Error('x'));document.head.appendChild(sc)});
+  // Zuerst selbst gehostete Dateien (/ocr/), sonst CDN.
+  tessPromise=load('/ocr/tesseract.min.js').then(()=>({local:true})).catch(()=>load('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js').then(()=>({local:false}))).catch(()=>{tessPromise=null;throw new Error('Texterkennung konnte nicht geladen werden. Du kannst den Text auch einfügen.')});
+  return tessPromise;
+}
+// Vorverarbeitung: skalieren, Graustufen, Kontrast strecken (hilft bei Folie und schwachem Licht).
+function prepareForOcr(bmp){
+  const maxW=2000,scale=Math.min(1,maxW/Math.max(bmp.width,bmp.height))*(Math.max(bmp.width,bmp.height)<1200?Math.min(2,1200/Math.max(bmp.width,bmp.height)):1);
+  const w=Math.round(bmp.width*scale),h=Math.round(bmp.height*scale),c=document.createElement('canvas');c.width=w;c.height=h;
+  const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(bmp,0,0,w,h);
+  const img=x.getImageData(0,0,w,h),d=img.data,hist=new Uint32Array(256);
+  for(let i=0;i<d.length;i+=4){const g=(d[i]*77+d[i+1]*150+d[i+2]*29)>>8;d[i]=d[i+1]=d[i+2]=g;hist[g]++}
+  const n=w*h;let lo=0,hi=255,acc=0;for(let i=0;i<256;i++){acc+=hist[i];if(acc>n*0.02){lo=i;break}}acc=0;for(let i=255;i>=0;i--){acc+=hist[i];if(acc>n*0.02){hi=i;break}}
+  const span=Math.max(40,hi-lo);for(let i=0;i<d.length;i+=4){const v=Math.max(0,Math.min(255,((d[i]-lo)*255)/span));d[i]=d[i+1]=d[i+2]=v}
+  x.putImageData(img,0,0);return c;
+}
+async function runOcr(file,ui){
+  ui.status('Texterkennung wird geladen …',0.02);
+  const {local}=await loadTesseract();
+  const bmp=await createImageBitmap(file);const canvas=prepareForOcr(bmp);
+  const opts={logger:m=>{if(m.status==='recognizing text')ui.status('Text wird erkannt … '+Math.round(m.progress*100)+' %',0.1+m.progress*0.9);else if(/loading|initializ/.test(m.status||''))ui.status('Sprachdaten werden geladen …',0.05)}};
+  if(local){opts.workerPath='/ocr/worker.min.js';opts.corePath='/ocr/';opts.langPath='/ocr/'}
+  const worker=await Tesseract.createWorker('deu',1,opts);
+  try{try{await worker.setParameters({tessedit_pageseg_mode:'6',preserve_interword_spaces:'1'})}catch{}
+    const r=await worker.recognize(canvas);return r.data.text||''}
+  finally{try{await worker.terminate()}catch{}}
+}
+function bindCapture(root,ean){
+  const box=root.querySelector('.capture');if(!box)return;
+  const file=box.querySelector('.ocrFile'),ta=box.querySelector('.ocrText'),bar=box.querySelector('.progress'),barI=bar.firstElementChild,st=box.querySelector('.ocrStatus'),err=box.querySelector('.ocrErr'),save=box.querySelector('.ocrSave'),nameIn=box.querySelector('.ocrName');
+  const ui={status(t,p){st.hidden=false;st.textContent=t;bar.hidden=false;barI.style.width=Math.round(p*100)+'%'}};
+  file.addEventListener('change',async()=>{
+    const f=file.files&&file.files[0];if(!f)return;err.hidden=true;
+    try{
+      const raw=await runOcr(f,ui);const r=extractIngredientText(raw);
+      ta.value=r.ingredients||raw.trim();
+      st.textContent=r.found?'Fertig. Bitte den Text mit dem Etikett vergleichen und Fehler korrigieren.':'Fertig, aber das Wort „Zutaten“ wurde nicht gefunden. Bitte prüfen und auf die Zutatenliste kürzen.';barI.style.width='100%';
+      if(!ta.value){err.textContent='Es wurde kein Text erkannt. Bitte näher, schärfer und bei gutem Licht fotografieren oder den Text einfügen.';err.hidden=false}
+    }catch(e){bar.hidden=true;st.hidden=true;err.textContent=(e&&e.message)||'Texterkennung fehlgeschlagen.';err.hidden=false}
+    file.value='';
+  });
+  save.addEventListener('click',async()=>{
+    err.hidden=true;const text=ta.value.trim();
+    if(text.length<3){err.textContent='Bitte zuerst die Zutatenliste eintragen.';err.hidden=false;return}
+    save.disabled=true;
+    try{
+      const r=await fetch('/api/product/'+encodeURIComponent(ean)+'/ingredients',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text,name:nameIn?nameIn.value:undefined})});
+      const d=await r.json().catch(()=>({}));
+      if(!r.ok){err.textContent=d.error||('Speichern fehlgeschlagen ('+r.status+')');err.hidden=false;save.disabled=false;return}
+      await lookup(ean,{fresh:true});
+    }catch(e){err.textContent='Fehler: '+e.message;err.hidden=false;save.disabled=false}
+  });
+}
+
+async function lookup(raw,opt={}){
   const ean=String(raw||'').replace(/\D/g,'');
   if(!/^(\d{8}|\d{12,14})$/.test(ean)){out.hidden=false;out.innerHTML='<div class="card"><p class="err">Bitte eine gültige EAN mit 8, 12, 13 oder 14 Ziffern eingeben.</p></div>';return}
   eanIn.value=ean;goBtn.disabled=true;out.hidden=false;out.innerHTML='<div class="card"><p>Produkt wird gesucht …</p></div>';
   try{
-    const r=await fetch('/api/product/'+encodeURIComponent(ean));
+    const r=await fetch('/api/product/'+encodeURIComponent(ean),opt.fresh?{cache:'no-store'}:undefined);
     const d=await r.json();
     if(r.status===400){out.innerHTML=`<div class="card"><p class="err">${esc(d.error||'Ungültige EAN')}</p></div>`}
-    else if(r.status===404||d.status==='NOT_FOUND'){out.innerHTML=`<div class="card"><div class="verdict v-grey"><div class="dot">?</div><div><h2>Produkt nicht gefunden</h2><p>Zu EAN ${esc(ean)} liegen keine Daten vor.</p></div></div></div>`}
+    else if(r.status===404||d.status==='NOT_FOUND'){out.innerHTML=`<div class="card"><div class="verdict v-grey"><div class="dot">?</div><div><h2>Produkt nicht gefunden</h2><p>Zu EAN ${esc(ean)} liegen keine Daten vor. Du kannst die Zutaten selbst erfassen.</p></div></div></div>`+captureBlock(ean,false);bindCapture(out,ean)}
     else render(d,ean);
   }catch(err){out.innerHTML=`<div class="card"><p class="err">Fehler: ${esc(err.message)}</p></div>`}
   finally{goBtn.disabled=false}

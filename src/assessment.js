@@ -4,6 +4,7 @@ import { confidenceRank } from "./field-merger.js";
 
 export function dataQuality(meta) {
   if (!meta) return { level: "none", reason: "Keine Zutatenliste vorhanden." };
+  if (meta.source === "Nutzer-Foto") return { level: "low", reason: "Von einem Nutzer per Foto erfasst und nicht unabhängig bestätigt. Bitte am Etikett prüfen." };
   const rank = confidenceRank(meta.confidence);
   if (rank >= confidenceRank("high")) return { level: "high", reason: `Zutaten aus geprüfter Quelle (${meta.source}).` };
   if (rank >= confidenceRank("medium")) return { level: "medium", reason: `Zutaten aus Gemeinschaftsdaten (${meta.source}); bitte am Etikett prüfen.` };
