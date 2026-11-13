@@ -18,3 +18,12 @@ test("Rossmann: Meta-Beschreibung ist keine Zutatenliste", () => {
 test("Rossmann: JSON-Feld mit maskierten Anführungszeichen wird nicht abgeschnitten", () => {
   assert.equal(extractRossmannIngredients('{"ingredients":"Wasser, \\"Bio\\"-Hafer 20 %, Salz"}'), 'Wasser, "Bio"-Hafer 20 %, Salz');
 });
+
+import { readFileSync } from "node:fs";
+test("Rossmann GRP_ZUTATEN-Akkordeon (echter PDP-Ausschnitt, enerBiO Lebkuchen)", () => {
+  const html = readFileSync(new URL("./fixtures/rossmann-pdp-accordion.html", import.meta.url), "utf8");
+  const v = extractRossmannIngredients(html);
+  assert.match(v, /^38% Hafervollkornflocken\* glutenfrei, Reissirup\*/);
+  assert.match(v, /Meersalz/);
+  assert.doesNotMatch(v, /Kann Spuren|Bio Riegel mit|Nährwerte|Durchschnittliche/);
+});

@@ -41,7 +41,7 @@ export async function getDmByEan(ean){
     const u=`${SEARCH}?query=${encodeURIComponent(ean)}&pageSize=5&enablePharmacy=true`;
     const r=await fetch(u,{headers});
     const body=await r.text();
-    trace.push({step:"dm_search",http_status:r.status,response_bytes:body.length});
+    trace.push({step:"dm_search",http_status:r.status,response_bytes:body.length,...(r.ok&&body.length>2?{}:{location:r.headers.get("location")||null,server:r.headers.get("server")||null,snippet:body.slice(0,120)})});
     if(r.ok&&body.trim()){try{dan=findDan(JSON.parse(body),ean)}catch{}}
   }catch{trace.push({step:"dm_search",reason:"fetch_error"})}
   if(!dan)return{found:false,source:"dm",reason:"ean_to_dan_unresolved",trace};
