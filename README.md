@@ -41,3 +41,12 @@ Offline (fetch-Stubs, In-Memory-D1-Attrappe). Live-Abrufe gegen Händler sind ni
 ## Initial regression EANs
 - dm: `4031244004895`
 - Rossmann: `4068134219077`
+
+
+## v0.5.0 – Scanner-Oberfläche
+
+- Kamera-Barcodescanner (native `BarcodeDetector`, Fallback ZXing aus dem CDN, z. B. für iPhone) mit manueller EAN-Eingabe.
+- Ergebnisansicht mit Ampel, gefundenen Zuckerarten/Süßungsmitteln/Zusatzstoffen, markierter Zutatenliste und Datenqualität.
+- API: neues Feld `assessment` (`verdict`: `added_sugar | sweeteners | sweetening_ingredients | none_detected | uncertain | unknown`, `quality`: `high | medium | low | none`). Fehlende Zutaten ergeben immer `unknown`, nie "kein Zucker".
+- Engine: Zusammensetzungen auf -zucker (Kokosblütenzucker, Vollrohrzucker …) zählen als zugesetzter Zucker.
+- Rossmann ist aus (`ENABLE_ROSSMANN=1` schaltet ihn ein).
