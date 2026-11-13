@@ -1,16 +1,18 @@
 {
   "name": "ingredient-scanner-mvp",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "check": "node --check src/index.js && node --check src/gtin.js && node --check src/hints.js && node --check src/resolver.js && node --check src/field-merger.js && node --check src/product-index.js && node --check src/adapters/rossmann.js && node --check src/adapters/openfoodfacts.js && node --check src/adapters/syndigo.js && node --check src/adapters/dm.js && node --check src/engine/ingredient-engine.js",
-    "test": "node test/run-tests.mjs && node test/rossmann-regression.mjs && node --test test/ingredient-engine.test.js test/rossmann-adapter.test.js test/parsers.test.mjs test/security.test.mjs test/index-cache.test.mjs test/assessment.test.mjs test/ean-decoder.test.mjs test/submission.test.mjs"
+    "test": "node test/run-tests.mjs && node test/rossmann-regression.mjs && node --test test/ingredient-engine.test.js test/rossmann-adapter.test.js test/parsers.test.mjs test/security.test.mjs test/index-cache.test.mjs test/assessment.test.mjs test/ean-decoder.test.mjs test/submission.test.mjs test/vendor-ocr.test.mjs",
+    "vendor-ocr": "node scripts/vendor-ocr.mjs"
   },
   "devDependencies": {
-    "wrangler": "^4.0.0"
+    "wrangler": "^4.0.0",
+    "tesseract.js": "5.1.1"
   },
   "engines": {
     "node": ">=20"
