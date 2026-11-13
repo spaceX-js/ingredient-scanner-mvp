@@ -67,6 +67,9 @@ pre{white-space:pre-wrap;word-break:break-word;background:#f8fafc;padding:12px;b
       <div class="row"><button id="stop" class="secondary" type="button">Scanner schließen</button></div>
     </div>
     <p class="err" id="camErr" hidden></p>
+    <label class="small" for="photo">Klappt das Live-Scannen nicht? Barcode fotografieren</label>
+    <input id="photo" type="file" accept="image/*" capture="environment" style="font-size:14px;margin-top:6px">
+    <p class="hint" id="photoMsg" hidden></p>
     <label class="small" for="ean">Oder Nummer eingeben (EAN)</label>
     <div class="row" style="margin-top:6px">
       <input id="ean" inputmode="numeric" autocomplete="off" placeholder="z. B. 4031244004895" maxlength="14">
@@ -78,7 +81,8 @@ pre{white-space:pre-wrap;word-break:break-word;background:#f8fafc;padding:12px;b
   <p class="foot">Zutatenangaben stammen aus Händler- und Gemeinschaftsdaten (u. a. Open Food Facts, ODbL). Maßgeblich ist immer die Angabe auf der Verpackung.</p>
 </main>
 
-<script>
+<script type="module">
+import { decodeEan, toGray } from "./ean-decoder.js";
 (function(){
 const $=s=>document.querySelector(s);
 const eanIn=$('#ean'),goBtn=$('#go'),out=$('#out'),scanBtn=$('#scan'),cam=$('#camera'),video=$('#video'),camErr=$('#camErr'),camHint=$('#camHint');
@@ -150,43 +154,64 @@ async function lookup(raw){
 }
 
 /* ---- Kamera-Scanner ---- */
-let stream=null,running=false,detector=null,zxingReader=null;
-function stopScan(){running=false;if(zxingReader){try{zxingReader.reset()}catch{}zxingReader=null}if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}video.srcObject=null;cam.classList.remove('on');scanBtn.disabled=false}
+let stream=null,running=false,detector=null,lastCode=null,lastCount=0;
+const work=document.createElement('canvas'),wctx=work.getContext('2d',{willReadFrequently:true});
+function stopScan(){running=false;if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}video.srcObject=null;cam.classList.remove('on');scanBtn.disabled=false}
 function onCode(code){if(!running)return;stopScan();if('vibrate' in navigator)try{navigator.vibrate(60)}catch{};lookup(code)}
-function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('Scanner-Bibliothek konnte nicht geladen werden'));document.head.appendChild(s)})}
+
+function decodeCanvasData(w,h){
+  const img=wctx.getImageData(0,0,w,h);
+  return decodeEan(toGray(img.data,w,h),w,h);
+}
+// Zeichnet eine Quelle (Video oder Bild) skaliert in den Arbeits-Canvas und versucht zu dekodieren, auch um 90° gedreht.
+function decodeSource(src,sw,sh,maxW){
+  const scale=Math.min(1,maxW/sw),w=Math.round(sw*scale),h=Math.round(sh*scale);
+  work.width=w;work.height=h;wctx.drawImage(src,0,0,w,h);
+  let c=decodeCanvasData(w,h);if(c)return c;
+  work.width=h;work.height=w;wctx.save();wctx.translate(h,0);wctx.rotate(Math.PI/2);wctx.drawImage(src,0,0,w,h);wctx.restore();
+  return decodeCanvasData(h,w);
+}
 
 async function startScan(){
   camErr.hidden=true;
-  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){camErr.textContent='Dieser Browser erlaubt keinen Kamerazugriff. Bitte die Nummer eingeben.';camErr.hidden=false;return}
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){camErr.textContent='Dieser Browser erlaubt keinen Kamerazugriff. Bitte Foto oder Nummer verwenden.';camErr.hidden=false;return}
   scanBtn.disabled=true;
   try{
-    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false});
   }catch(e){
     scanBtn.disabled=false;
-    camErr.textContent=e&&e.name==='NotAllowedError'?'Kamerazugriff wurde nicht erlaubt. Erlaube ihn in den Browser-Einstellungen oder gib die Nummer ein.':'Kamera nicht verfügbar: '+(e&&e.message||e);camErr.hidden=false;return;
+    camErr.textContent=e&&e.name==='NotAllowedError'?'Kamerazugriff wurde nicht erlaubt. Erlaube ihn in den Browser-Einstellungen oder nutze Foto oder Nummer.':'Kamera nicht verfügbar: '+(e&&e.message||e);camErr.hidden=false;return;
   }
-  video.srcObject=stream;await video.play().catch(()=>{});cam.classList.add('on');running=true;camHint.textContent='Halte den Barcode in den Rahmen.';
-  if('BarcodeDetector' in window){
-    try{detector=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e']})}catch{detector=null}
-  }
-  if(detector){
-    const tick=async()=>{
-      if(!running)return;
-      try{const codes=await detector.detect(video);if(codes.length){onCode(codes[0].rawValue);return}}catch{}
-      setTimeout(tick,120);
-    };tick();return;
-  }
-  // Fallback (z. B. iPhone/Safari): ZXing aus dem CDN laden
-  try{
-    camHint.textContent='Scanner wird geladen …';
-    if(!window.ZXing)await loadScript('https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js');
-    const Z=window.ZXing;const hints=new Map();
-    hints.set(Z.DecodeHintType.POSSIBLE_FORMATS,[Z.BarcodeFormat.EAN_13,Z.BarcodeFormat.EAN_8,Z.BarcodeFormat.UPC_A,Z.BarcodeFormat.UPC_E]);
-    zxingReader=new Z.BrowserMultiFormatReader(hints,150);
-    camHint.textContent='Halte den Barcode in den Rahmen.';
-    zxingReader.decodeFromVideoElement(video,(result)=>{if(result)onCode(result.getText())});
-  }catch(e){camErr.textContent=(e&&e.message||e)+'. Bitte die Nummer eingeben.';camErr.hidden=false;stopScan()}
+  try{const t=stream.getVideoTracks()[0];const caps=t.getCapabilities?t.getCapabilities():{};if(caps.focusMode&&caps.focusMode.includes('continuous'))await t.applyConstraints({advanced:[{focusMode:'continuous'}]})}catch{}
+  video.srcObject=stream;await video.play().catch(()=>{});cam.classList.add('on');running=true;lastCode=null;lastCount=0;
+  camHint.textContent='Halte den Barcode ruhig und waagerecht in den Rahmen, etwa eine Handbreit Abstand.';
+  if('BarcodeDetector' in window){try{detector=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e']})}catch{detector=null}}
+  let n=0;
+  const tick=async()=>{
+    if(!running)return;
+    try{
+      let code=null;
+      if(detector){const r=await detector.detect(video);if(r.length)code=r[0].rawValue}
+      if(!code&&video.videoWidth)code=decodeSource(video,video.videoWidth,video.videoHeight,960);
+      if(code){if(code===lastCode)lastCount++;else{lastCode=code;lastCount=1}if(lastCount>=2){onCode(code);return}}
+      n++;if(n===60)camHint.textContent='Noch nichts erkannt. Mehr Licht, etwas Abstand und den Code waagerecht halten. Alternativ ein Foto machen.';
+    }catch{}
+    setTimeout(tick,90);
+  };tick();
 }
+
+// Foto-Fallback: Der Systemdialog liefert ein scharfes, hochauflösendes Bild.
+$('#photo').addEventListener('change',async ev=>{
+  const f=ev.target.files&&ev.target.files[0];const msg=$('#photoMsg');if(!f)return;
+  msg.hidden=false;msg.className='hint';msg.textContent='Foto wird gelesen …';
+  try{
+    const bmp=await createImageBitmap(f);let code=null;
+    for(const mw of [1600,1000,2400,700]){code=decodeSource(bmp,bmp.width,bmp.height,mw);if(code)break}
+    if(code){msg.textContent='Erkannt: '+code;lookup(code)}
+    else{msg.className='err';msg.textContent='Im Foto wurde kein Barcode erkannt. Bitte näher, schärfer und waagerecht fotografieren, oder die Nummer eingeben.'}
+  }catch(e){msg.className='err';msg.textContent='Foto konnte nicht gelesen werden: '+(e&&e.message||e)}
+  ev.target.value='';
+});
 
 scanBtn.addEventListener('click',startScan);
 $('#stop').addEventListener('click',stopScan);
