@@ -6,7 +6,7 @@ export class FakeD1 {
     return {
       bind(...args) {
         return {
-          async first() { return /FROM products WHERE ean/.test(sql) ? db.products.get(args[0]) || null : null; },
+          async first() { if (/FROM product_fields WHERE ean/.test(sql)) return db.fields.get(`${args[0]}|ingredients`) || null; return /FROM products WHERE ean/.test(sql) ? db.products.get(args[0]) || null : null; },
           async all() {
             if (/FROM retailer_products/.test(sql)) return { results: db.retailers.filter((r) => r.ean === args[0] && r.status === "active") };
             if (/FROM product_fields/.test(sql)) return { results: [...db.fields.values()].filter((f) => f.ean === args[0]) };

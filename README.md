@@ -50,3 +50,18 @@ Offline (fetch-Stubs, In-Memory-D1-Attrappe). Live-Abrufe gegen Händler sind ni
 - API: neues Feld `assessment` (`verdict`: `added_sugar | sweeteners | sweetening_ingredients | none_detected | uncertain | unknown`, `quality`: `high | medium | low | none`). Fehlende Zutaten ergeben immer `unknown`, nie "kein Zucker".
 - Engine: Zusammensetzungen auf -zucker (Kokosblütenzucker, Vollrohrzucker …) zählen als zugesetzter Zucker.
 - Rossmann ist aus (`ENABLE_ROSSMANN=1` schaltet ihn ein).
+
+## v0.6.0 – Zutaten per Foto erfassen
+
+- Unbekannte Produkte (oder Produkte mit unsicherer Datenlage) bieten „Zutaten erfassen“: Foto der Zutatenliste, Texterkennung **im Browser** (Tesseract.js, deutsch), Prüfen/Korrigieren, Speichern. Alternativ Text einfügen (iPhone: Live Text im Kamerabild).
+- `POST /api/product/{EAN}/ingredients` mit `{ "text": "...", "name": "optional" }`: speichert in D1 mit Quelle `Nutzer-Foto`, Confidence `low` (Anzeige: "uncertain", wenn nichts Auffälliges gefunden wird). Geprüfte Händler-/Handdaten werden nie überschrieben (409). Nur gleiche Herkunft (Origin), Text ≤ 3000 Zeichen, keine Markup-Zeichen/Links.
+- Keine Serverkosten für die Texterkennung: sie läuft auf dem Gerät des Nutzers.
+
+### OCR-Dateien selbst hosten (empfohlen)
+Standardmäßig lädt die Seite Tesseract.js vom CDN (jsDelivr) und die Sprachdaten vom Tesseract-Server. Zum Selbst-Hosten die Dateien nach `public/ocr/` legen:
+
+1. `npm i --no-save tesseract.js@5 tesseract.js-core@5`
+2. Kopieren nach `public/ocr/`: `node_modules/tesseract.js/dist/tesseract.min.js`, `node_modules/tesseract.js/dist/worker.min.js`, alle `node_modules/tesseract.js-core/tesseract-core*.js` und `*.wasm`.
+3. `deu.traineddata.gz` (z. B. aus dem Repository `tessdata_fast`) ebenfalls nach `public/ocr/`.
+
+Die Seite erkennt `/ocr/tesseract.min.js` automatisch und nutzt dann nur noch eigene Dateien.
